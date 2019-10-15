@@ -1,0 +1,15 @@
+{
+    "name": "com.matthayter.hapn",
+    "displayName": "Hapn",
+    "version": "0.0.1",
+    "unity": "2018.1",
+    "description": "The Hapn state-machine tool.",
+    "keywords": ["State Machine"],
+    "category": "Controllers",
+    "dependencies": {
+    },
+    "author": {
+        "name": "Matt Hayter",
+        "email": "hapn@matthayter.com"
+    }
+}

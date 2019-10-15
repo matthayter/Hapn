@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CodeSnippets xmlns="http://schemas.microsoft.com/VisualStudio/2005/CodeSnippet">
+    <CodeSnippet Format="1.0.0">
+        <Header>
+            <Title>New State</Title>
+            <Shortcut>state</Shortcut>
+        </Header>
+        <Snippet>
+            <Code Language="CSharp" Kind="method body">
+                <![CDATA[var $StateName$ = $Graph$.NewState("$StateName$");]]>
+            </Code>
+            <Declarations>
+                <Literal>
+                    <ID>StateName</ID>
+                    <ToolTip>Name of the new State.</ToolTip>
+                    <Default>newState</Default>
+                </Literal>
+                <Object>
+                    <ID>Graph</ID>
+                    <ToolTip>Name of the variable holding your graph.</ToolTip>
+                    <Default>myGraph</Default>
+                    <Type>Hapn.Graph</Type>
+                </Object>
+            </Declarations>
+        </Snippet>
+    </CodeSnippet>
+</CodeSnippets>
