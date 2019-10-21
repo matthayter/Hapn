@@ -292,9 +292,9 @@ namespace Hapn {
                 if (done) return;
                 float sinceEntry = Time.time - state.entryTime;
                 if (sinceEntry < duration) {
-                    output(lerp(start, end, curve.Evaluate(sinceEntry)));
+                    output(lerp(start, end, AdditionalHelpers.EvalCurveNormalized(curve, duration, sinceEntry)));
                 } else {
-                    output(end);
+                    output(lerp(start, end, AdditionalHelpers.EvalCurveNormalized(curve, duration, duration)));
                     done = true;
                 }
             });

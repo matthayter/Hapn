@@ -1,6 +1,8 @@
 {
     "name": "MatteDev.Hapn",
-    "references": [],
+    "references": [
+        "UniRx.Async"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

@@ -2,7 +2,7 @@
     "name": "com.matthayter.hapn",
     "displayName": "Hapn",
     "version": "0.0.1",
-    "unity": "2018.1",
+    "unity": "2018.3",
     "description": "The Hapn state-machine tool.",
     "keywords": ["State Machine"],
     "category": "Controllers",

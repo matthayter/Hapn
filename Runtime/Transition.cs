@@ -8,6 +8,37 @@ using UnityEngine.Events;
 namespace Hapn {
 
     public static class TransitionHelpers {
+
+        /// <summary>
+        /// Make a transition that the caller is responsible for triggering via Transition.TriggerManually().
+        /// The caller can also make use of transition.ToEnable() and .ToDisable().
+        /// </summary>
+        public static Action MakeManualTransition(this IStateConstruction src, NoTokenStateConstruction dest) {
+            var t = new MultiTransition(src.Graph);
+            bool isEnabled = false;
+
+            t.To(dest);
+            t.ToEnable(() => isEnabled = true);
+            t.ToDisable(() => isEnabled = false);
+            src.AddTransition(t);
+            return () => {
+                if (isEnabled) t.TriggerManually();
+            };
+        }
+
+        public static Action<T> MakeManualTransition<T>(this IStateConstruction src, WithTokenStateConstruction<T> dest) {
+            var t = new MultiTransition<T>(src.Graph);
+            bool isEnabled = false;
+
+            t.To(dest);
+            t.ToEnable(() => isEnabled = true);
+            t.ToDisable(() => isEnabled = false);
+            src.AddTransition(t);
+            return (token) => {
+                if (isEnabled) t.TriggerManually(token);
+            };
+        }
+
         public static void MakeTransition(this IStateConstruction src, NoTokenStateConstruction dest, Button button) {
             var t = new MultiTransition(src.Graph);
             t.To(dest);
@@ -57,7 +88,7 @@ namespace Hapn {
     }
 
     // This is the interface for use by the graph.
-    // Should maybe use different interfaces for 'Check every frame' type vs 'Manual' vs 'Subscribe' etc...
+    // Should maybe use different interfaces for 'Check every frame' type vs 'Trigger' vs 'Subscribe' etc...
     public interface ITransition {
         bool CheckAndPassData();
         // Graph will call this to activate the next state; transition should already have filled that state with needed tokens first
@@ -66,6 +97,40 @@ namespace Hapn {
         void Enable();
         void Disable();
     }
+
+    #region Triggerable stuff, delete this when ready.
+    public interface ITriggerable {
+        void Trigger();
+    }
+
+    public interface ITriggerable<T> {
+        void Trigger(T token);
+    }
+
+    public class TriggerableWrapper : ITriggerable {
+        internal readonly Action triggerAction;
+
+        public TriggerableWrapper(Action triggerAction) {
+            this.triggerAction = triggerAction;
+        }
+
+        public void Trigger() {
+            triggerAction();
+        }
+    }
+
+    public class TriggerableWrapper<T> : ITriggerable<T> {
+        internal readonly Action<T> triggerAction;
+
+        public TriggerableWrapper(Action<T> triggerAction) {
+            this.triggerAction = triggerAction;
+        }
+
+        public void Trigger(T token) {
+            triggerAction(token);
+        }
+    }
+    #endregion
 
     // Pull out the parts common to ITranitionBuilder that are unrelated to the destination token type.
     public interface IBaseTransitionBuilder<T> {
@@ -90,6 +155,7 @@ namespace Hapn {
     //public class TransitionBuilder<S> : ITransitionBuilder<S> where S : IState {
     //}
 
+    // Reminder: this is a data class, and should have no behaviour except for trivial actions needed to statisfy the type system.
     public class MultiTransition : ITransition, ITransitionBuilder {
         private Graph m_graph;
         private IState m_dest;
@@ -256,7 +322,10 @@ namespace Hapn {
             return false;
         }
 
-        public void TriggerManually() {
+        public void TriggerManually(S token) {
+            // TODO: Consider making this safer.
+            // Warning: this currently does not verify whether the graph is indeed in the src state. Only call this if you're sure that is the case.
+            m_dest.Enter(token);
             m_graph.TriggerManualTransition(m_dest);
         }
 

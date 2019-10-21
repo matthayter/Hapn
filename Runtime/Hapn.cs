@@ -321,6 +321,7 @@ namespace Hapn
             }
             if (!m_hasStartedInitState) {
                 m_hasStartedInitState = true;
+                if (m_logDebug) Debug.LogFormat("Graph [{0}] starting.", m_name);
                 foreach (IState i in m_stateSet) {
                     if (i == m_currentState) continue;
                     i.RunNegativeEntryActions();
