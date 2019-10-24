@@ -14,29 +14,39 @@ namespace Hapn {
         /// The caller can also make use of transition.ToEnable() and .ToDisable().
         /// </summary>
         public static Action MakeManualTransition(this IStateConstruction src, NoTokenStateConstruction dest) {
-            var t = new MultiTransition(src.Graph);
-            bool isEnabled = false;
-
+            (var t, var trigger) = MakeManualDanglingTransition(src);
             t.To(dest);
-            t.ToEnable(() => isEnabled = true);
-            t.ToDisable(() => isEnabled = false);
-            src.AddTransition(t);
-            return () => {
-                if (isEnabled) t.TriggerManually();
-            };
+            return trigger;
         }
 
         public static Action<T> MakeManualTransition<T>(this IStateConstruction src, WithTokenStateConstruction<T> dest) {
-            var t = new MultiTransition<T>(src.Graph);
+            (var t, var trigger) = MakeManualDanglingTransition<T>(src);
+            t.To(dest);
+            return trigger;
+        }
+
+        public static (ITransitionBuilder transition, Action trigger) MakeManualDanglingTransition(this IStateConstruction src) {
+            var t = new MultiTransition(src.Graph);
             bool isEnabled = false;
 
-            t.To(dest);
             t.ToEnable(() => isEnabled = true);
             t.ToDisable(() => isEnabled = false);
             src.AddTransition(t);
-            return (token) => {
+            return (t, () => {
+                if (isEnabled) t.TriggerManually();
+            });
+        }
+
+        public static (ITransitionBuilder<T> transition, Action<T> trigger) MakeManualDanglingTransition<T>(this IStateConstruction src) {
+            var t = new MultiTransition<T>(src.Graph);
+            bool isEnabled = false;
+
+            t.ToEnable(() => isEnabled = true);
+            t.ToDisable(() => isEnabled = false);
+            src.AddTransition(t);
+            return (t, (token) => {
                 if (isEnabled) t.TriggerManually(token);
-            };
+            });
         }
 
         public static void MakeTransition(this IStateConstruction src, NoTokenStateConstruction dest, Button button) {
@@ -133,23 +143,23 @@ namespace Hapn {
     #endregion
 
     // Pull out the parts common to ITranitionBuilder that are unrelated to the destination token type.
-    public interface IBaseTransitionBuilder<T> {
-        T ToEnable(Action enable);
-        T ToDisable(Action disable);
+    public interface IBaseTransitionBuilder {
+        void ToEnable(Action enable);
+        void ToDisable(Action disable);
         void Build();
     }
 
     // We'll probably need a proper builder later, but just make the Transition be it's own builder for now.
-    public interface ITransitionBuilder : IBaseTransitionBuilder<ITransitionBuilder> {
+    public interface ITransitionBuilder : IBaseTransitionBuilder {
         //ITransitionBuilder To(EntranceTypes dest);
-        ITransitionBuilder To(NoTokenStateConstruction dest);
-        ITransitionBuilder When(Func<bool> predicate);
+        void To(NoTokenStateConstruction dest);
+        void When(Func<bool> predicate);
     }
-    public interface ITransitionBuilder<T> : IBaseTransitionBuilder<ITransitionBuilder<T>> {
+    public interface ITransitionBuilder<T> : IBaseTransitionBuilder {
         //ITransitionBuilder<T> To(EntranceTypes<T> dest);
-        ITransitionBuilder<T> To(WithTokenStateConstruction<T> dest);
-        ITransitionBuilder<T> When(Func<T> predicate);
-        ITransitionBuilder<T> When(Func<(bool, T)> predicate);
+        void To(WithTokenStateConstruction<T> dest);
+        void When(Func<T> predicate);
+        void When(Func<(bool, T)> predicate);
     }
 
     //public class TransitionBuilder<S> : ITransitionBuilder<S> where S : IState {
@@ -169,21 +179,15 @@ namespace Hapn {
         }
 
         #region Builder methods to be moved out
-        public ITransitionBuilder When(Func<bool> predicate) {
+        public void When(Func<bool> predicate) {
             m_check.Add(predicate);
-            return this;
         }
 
-        //public ITransitionBuilder To(EntranceTypes dest) {
-        //    m_dest = dest;
-        //    return this;
-        //}
-        public ITransitionBuilder To(NoTokenStateConstruction dest) {
+        public void To(NoTokenStateConstruction dest) {
             m_dest = dest.ToEntranceType();
-            return this;
         }
 
-        public ITransitionBuilder ToEnable(Action enable) {
+        public void ToEnable(Action enable) {
             if (m_enable != null) {
                 var oldEnable = m_enable;
                 m_enable = () => {
@@ -193,10 +197,9 @@ namespace Hapn {
             } else {
                 m_enable = enable;
             }
-            return this;
         }
 
-        public ITransitionBuilder ToDisable(Action disable) {
+        public void ToDisable(Action disable) {
             if (m_disable != null) {
                 var oldDisable = m_disable;
                 m_disable = () => {
@@ -206,7 +209,6 @@ namespace Hapn {
             } else {
                 m_disable = disable;
             }
-            return this;
         }
 
         public void Build() {
@@ -254,26 +256,22 @@ namespace Hapn {
 
 
         #region Builder methods
-        public ITransitionBuilder<S> When(Func<(bool, S)> predicate) {
+        public void When(Func<(bool, S)> predicate) {
             m_check.Add(predicate);
-            return this;
         }
 
-        public ITransitionBuilder<S> When(Func<S> predicate) {
+        public void When(Func<S> predicate) {
             m_notNullTokenChecks.Add(predicate);
-            return this;
         }
 
-        public ITransitionBuilder<S> To(EntranceTypes<S> dest) {
+        public void To(EntranceTypes<S> dest) {
             m_dest = dest;
-            return this;
         }
-        public ITransitionBuilder<S> To(WithTokenStateConstruction<S> dest) {
+        public void To(WithTokenStateConstruction<S> dest) {
             m_dest = dest.ToEntranceType();
-            return this;
         }
 
-        public ITransitionBuilder<S> ToEnable(Action enable) {
+        public void ToEnable(Action enable) {
             if (m_enable != null) {
                 var oldEnable = m_enable;
                 m_enable = () => {
@@ -283,10 +281,9 @@ namespace Hapn {
             } else {
                 m_enable = enable;
             }
-            return this;
         }
 
-        public ITransitionBuilder<S> ToDisable(Action disable) {
+        public void ToDisable(Action disable) {
             if (m_disable != null) {
                 var oldDisable = m_disable;
                 m_disable = () => {
@@ -296,7 +293,6 @@ namespace Hapn {
             } else {
                 m_disable = disable;
             }
-            return this;
         }
         #endregion
 

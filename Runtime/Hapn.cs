@@ -109,6 +109,10 @@ namespace Hapn
                 a();
             }
         }
+
+        public IState ToRuntimeState() {
+            return this;
+        }
     }
 
     // Inherit from this for custom state classes.
@@ -246,6 +250,7 @@ namespace Hapn
         Graph Graph { get; }
 
         float entryTime { get; }
+        IState ToRuntimeState();
     }
     public interface NoTokenStateConstruction : IStateConstruction {
         EntranceTypes ToEntranceType();
@@ -291,6 +296,9 @@ namespace Hapn
             m_baseState.AddTransition(t);
         }
 
+        public IState ToRuntimeState() {
+            return m_baseState.ToRuntimeState();
+        }
     }
 
     public class Graph {

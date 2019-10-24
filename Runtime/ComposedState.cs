@@ -88,6 +88,10 @@ namespace Hapn {
                 a();
             }
         }
+
+        public IState ToRuntimeState() {
+            return this;
+        }
     }
 
     public class ComposedState<T> : EntranceTypes<T>, WithTokenStateConstruction<T> {
@@ -172,6 +176,10 @@ namespace Hapn {
             foreach (var a in negativeExitActions) {
                 a();
             }
+        }
+
+        public IState ToRuntimeState() {
+            return this;
         }
     }
 
