@@ -18,7 +18,7 @@ namespace Hapn
     }
 
     // Inherit from this for custom state classes.
-    public abstract class BaseState<S, T> : EntranceTypes<T>, WithTokenStateConstruction<T> where S : BaseState<S, T> {
+    public abstract class BaseState<T> : EntranceTypes<T>, WithTokenStateConstruction<T> {
         public List<ITransition> transitions { get; } = new List<ITransition>();
         public List<Action> entryActions { get; } = new List<Action>();
         public List<Action> everyFrame { get; } = new List<Action>();
@@ -26,6 +26,7 @@ namespace Hapn
         public List<Action> negativeEntryActions { get; } = new List<Action>();
         public List<Action> negativeEveryFrameActions { get; } = new List<Action>();
         public List<Action> negativeExitActions { get; } = new List<Action>();
+        public List<StateGroup> groups { get; set; }  = new List<StateGroup>();
         public float entryTime { get; set; } = 0f;
         public Graph Graph { get; set; }
         public string Name { get; }
@@ -37,10 +38,11 @@ namespace Hapn
             this.Name = name;
         }
 
-        protected abstract S GetMe();
-
         public void AddTransition(ITransition t) {
             transitions.Add(t);
+        }
+        public void AddGroup(StateGroup sg) {
+            groups.Add(sg);
         }
 
         public void AddEntryAction(Action action) {
@@ -116,7 +118,7 @@ namespace Hapn
     }
 
     // Inherit from this for custom state classes.
-    public abstract class BaseState<S> : EntranceTypes where S : BaseState<S> {
+    public abstract class BaseState : EntranceTypes, NoTokenStateConstruction {
         public List<ITransition> transitions { get; } = new List<ITransition>();
         public List<Action> entryActions { get; } = new List<Action>();
         public List<Action> everyFrame { get; } = new List<Action>();
@@ -124,14 +126,14 @@ namespace Hapn
         public List<Action> negativeEntryActions { get; } = new List<Action>();
         public List<Action> negativeEveryFrameActions { get; } = new List<Action>();
         public List<Action> negativeExitActions { get; } = new List<Action>();
+        public List<StateGroup> groups { get; set; }  = new List<StateGroup>();
+        public Graph Graph { get; set; }
         public float entryTime { get; set; } = 0f;
         public string Name { get; }
 
         public BaseState(string name) {
             this.Name = name;
         }
-
-        protected abstract S GetMe();
 
         // This is only a setter method. Entrance actions will be invoked by the Graph, possibly by calling a different method on this.
         public void Enter() {
@@ -147,6 +149,9 @@ namespace Hapn
 
         public void AddTransition(ITransition t) {
             transitions.Add(t);
+        }
+        public void AddGroup(StateGroup sg) {
+            groups.Add(sg);
         }
 
         public void RunEveryFrameActions() {
@@ -217,14 +222,26 @@ namespace Hapn
             }
         }
 
+        public EntranceTypes ToEntranceType() {
+            return this;
+        }
+
+        public IState ToRuntimeState() {
+            return this;
+        }
     }
 
     // This is for use by the Graph at runtime
     public interface IState {
         List<ITransition> transitions { get; }
+        // Perhaps these should also be functions, e.g. void RunGroupEntryActions().
+        // May need to change later
+        List<StateGroup> groups { get; }
         float entryTime { get; set; }
         string Name { get; }
 
+        // These are functions instead of getters to allow the Actions to be typed to the tokens
+        // of the state (not currently the case)
         void RunEntryActions();
         void RunEveryFrameActions();
         void RunExitActions();
@@ -247,6 +264,7 @@ namespace Hapn
         void AddNegativeExitAction(Action action);
         void AddNegativeEveryFrameAction(Action action);
         void AddTransition(ITransition t);
+        void AddGroup(StateGroup sg);
         Graph Graph { get; }
 
         float entryTime { get; }
@@ -292,105 +310,18 @@ namespace Hapn
             m_baseState.AddExitAction(action);
         }
 
+        // Adding a transition or group to a StateGroup (which a Negative state effectively is) is
+        // not yet supported.
         public void AddTransition(ITransition t) {
             m_baseState.AddTransition(t);
+        }
+        public void AddGroup(StateGroup sg) {
+            m_baseState.AddGroup(sg);
         }
 
         public IState ToRuntimeState() {
             return m_baseState.ToRuntimeState();
         }
-    }
-
-    public class Graph {
-        private static int anonCounter = 0;
-        public IState m_currentState = null;
-        private bool m_hasStartedInitState = false;
-        private HashSet<IState> m_stateSet = new HashSet<IState>();
-        private string m_name;
-        private bool m_logDebug;
-
-        public Graph(string name = null, bool logDebug = false) {
-            m_name = name ?? anonCounter++.ToString();
-            m_logDebug = logDebug;
-        }
-        public void SetInitState(IState s) {
-            m_currentState = s;
-        }
-
-        public void AddState(IState s) {
-            m_stateSet.Add(s);
-        }
-
-        public void Update()
-        {
-            if (m_currentState == null) {
-                Debug.LogWarning("Graph: Update called, but no initial state has been set.");
-                return;
-            }
-            if (!m_hasStartedInitState) {
-                m_hasStartedInitState = true;
-                if (m_logDebug) Debug.LogFormat("Graph [{0}] starting.", m_name);
-                foreach (IState i in m_stateSet) {
-                    if (i == m_currentState) continue;
-                    i.RunNegativeEntryActions();
-                }
-                m_currentState.RunEntryActions();
-                foreach (ITransition t in m_currentState.transitions) {
-                    t.Enable();
-                }
-            }
-            bool m_keepCheckingTransitions = true;
-            while (m_keepCheckingTransitions) {
-                m_keepCheckingTransitions = false;
-                foreach (ITransition t in m_currentState.transitions) {
-                    if (t.CheckAndPassData()) {
-                        DoTransitionWork(t.GetDestination());
-                        m_keepCheckingTransitions = true;
-                        break;
-                    }
-                }
-            }
-            // Run EveryFrameActions for the current state and the NegativeStates of every other state
-            m_currentState.RunEveryFrameActions();
-            foreach (IState i in m_stateSet) {
-                if (i == m_currentState) continue;
-                i.RunNegativeEveryFrameActions();
-            }
-            
-        }
-
-        // Transition should already have inserted any tokens into the
-        // destination state before calling this.
-        public void TriggerManualTransition(IState destination) {
-            DoTransitionWork(destination);
-        }
-        private void DoTransitionWork(IState destination) {
-            if (m_logDebug) Debug.LogFormat("Graph [{0}]: {1} -> {2}", m_name, m_currentState.Name, destination.Name);
-            var outgoingState = m_currentState;
-            foreach (ITransition u in m_currentState.transitions) {
-                u.Disable();
-            }
-            m_currentState.RunExitActions();
-            // Run exit actions for the negativeState of the incoming state: we're exiting out of the meta-state represented by not(destination)
-            destination.RunNegativeExitActions();
-
-            //////
-            m_currentState = destination;
-            if (m_currentState == null) throw new Exception("Somebody messed up the transitions!");
-            //////
-
-            m_currentState.entryTime = Time.time;
-            // Run entry actions of the negativeState for the outgoing state
-            outgoingState.RunNegativeEntryActions();
-            m_currentState.RunEntryActions();
-            foreach (ITransition u in m_currentState.transitions) {
-                u.Enable();
-            }
-
-        }
-    }
-
-    public class StateGroup {
     }
 
     // UTILITIES

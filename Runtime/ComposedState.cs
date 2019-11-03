@@ -19,9 +19,12 @@ namespace Hapn {
         public List<Action> negativeEntryActions { get; } = new List<Action>();
         public List<Action> negativeEveryFrameActions { get; } = new List<Action>();
         public List<Action> negativeExitActions { get; } = new List<Action>();
+        public List<StateGroup> groups { get; set; }  = new List<StateGroup>();
         public float entryTime { get; set; } = 0f;
         public Graph Graph { get; set; }
         public string Name { get; }
+
+        //public List<StateGroup> groups { get; set; }
 
         public ComposedState (Graph graph, string name) {
             this.Graph = graph;
@@ -46,6 +49,9 @@ namespace Hapn {
 
         public void AddTransition(ITransition t) {
             transitions.Add(t);
+        }
+        public void AddGroup(StateGroup sg) {
+            groups.Add(sg);
         }
         public void AddEveryFrameAction(Action action) {
             everyFrame.Add(action);
@@ -102,6 +108,7 @@ namespace Hapn {
         public List<Action> negativeEntryActions { get; } = new List<Action>();
         public List<Action> negativeEveryFrameActions { get; } = new List<Action>();
         public List<Action> negativeExitActions { get; } = new List<Action>();
+        public List<StateGroup> groups { get; set; }  = new List<StateGroup>();
         public float entryTime { get; set; } = 0f;
         public Graph Graph { get; set; }
         public string Name { get; }
@@ -131,6 +138,9 @@ namespace Hapn {
 
         public void AddTransition(ITransition t) {
             transitions.Add(t);
+        }
+        public void AddGroup(StateGroup sg) {
+            groups.Add(sg);
         }
 
         public void AddEntryAction(Action action) {
