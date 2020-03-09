@@ -40,6 +40,41 @@ namespace Hapn.UniRx {
             return t;
         }
 
+        public static (ITransitionBuilder success, ITransitionBuilder<Exception> fail) BindAsyncLamdaAndTransitionByResult(this IStateConstruction state, Func<UniTask> task) {
+            // If the state is entered then exited then entered again before the first UniTask completes,
+            // we need a way to have the first task not cause a transition. Avoid alloc by using a simple counter.
+            uint execCounter = 0;
+            bool successTransitionShouldTrigger = false;
+            Exception e = null;
+            state.AddEntryAction(async () => {
+                successTransitionShouldTrigger = false;
+                e = null;
+                execCounter++;
+                uint thisTasksCounter = execCounter;
+
+                try {
+                    await task();
+                    if (thisTasksCounter == execCounter) {
+                        successTransitionShouldTrigger = true;
+                    }
+                } catch (Exception eInstance) {
+                    if (thisTasksCounter == execCounter) {
+                        e = eInstance;
+                    }
+                }
+            });
+
+            var tFail = new MultiTransition<Exception>(state.Graph);
+            state.AddTransition(tFail);
+
+            var tSuccess = new MultiTransition(state.Graph);
+            state.AddTransition(tSuccess);
+
+            tSuccess.When(() => successTransitionShouldTrigger);
+            tFail.When(() => e);
+            return (tSuccess, tFail);
+        }
+
 
         // Runtime helpers - these are useful at runtime, not during graph building.
         public static async UniTask RunHapnTween(HapnVec3Tween tween) {

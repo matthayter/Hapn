@@ -310,7 +310,7 @@ namespace Hapn
             m_baseState.AddExitAction(action);
         }
 
-        // Adding a transition or group to a StateGroup (which a Negative state effectively is) is
+        // Adding a transition to a StateGroup (which a Negative state effectively is) is
         // not yet supported.
         public void AddTransition(ITransition t) {
             m_baseState.AddTransition(t);
@@ -398,25 +398,34 @@ namespace Hapn
             return graph.StateFromAnimationCurve(duration, AdditionalHelpers.LerpFloat, initValues, output, curve);
         }
 
+        public static (NoTokenStateConstruction state, ITransitionBuilder transition) StateFromAnimationCurve(this Graph graph, string name, float duration, Func<(float, float)> initValues, Action<float> output, AnimationCurve curve) {
+            return graph.StateFromAnimationCurve(duration, AdditionalHelpers.LerpFloat, initValues, output, curve, name);
+        }
+
         public static (NoTokenStateConstruction state, ITransitionBuilder transition) StateFromHapnTween(this Graph graph, HapnTweenAdapter m_tween) {
             return graph.StateFromAnimationCurve(m_tween.duration, AdditionalHelpers.LerpVec2, () => (m_tween.startPos, m_tween.endPos), (val) => m_tween.toChange?.Invoke(val), m_tween.curve);
         }
 
-        public static (NoTokenStateConstruction state, ITransitionBuilder transition) StateFromAnimationCurve<T>(this Graph graph, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve) {
-            var s = graph.NewState();
-            var t = new MultiTransition(graph);
+        public static (NoTokenStateConstruction state, ITransitionBuilder transition) StateFromAnimationCurve<T>(this Graph graph, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve, string name = null) {
+            var s = graph.NewState(name);
+            var t = s.BindAnimationAndTransitionOnDone(duration, lerp, initValues, output, curve);
+            return (s, t);
+        }
+
+        public static ITransitionBuilder BindAnimationAndTransitionOnDone<T>(this IStateConstruction s, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve) {
+            var t = new MultiTransition(s.Graph);
             var isAnimationDone = s.BindAnimation(duration, lerp, initValues, output, curve);
             t.When(isAnimationDone);
             s.AddTransition(t);
-            return (s, t);
+            return t;
         }
 
         public static (NoTokenStateConstruction off, NoTokenStateConstruction on) BooleanStates(this Graph graph, Button show, Button hide) {
             var off = graph.NewState();
             var on = graph.NewState();
             // Transitions
-            TransitionHelpers.MakeTransition(off, on, show);
-            TransitionHelpers.MakeTransition(on, off, hide);
+            off.MakeTransition(on, show);
+            on.MakeTransition(off, hide);
 
             return (off, on);
         }

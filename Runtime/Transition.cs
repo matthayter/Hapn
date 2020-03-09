@@ -61,6 +61,28 @@ namespace Hapn {
             src.AddTransition(t);
         }
 
+        // May want to add generic version for token states.
+        public static ITransitionBuilder MakeDanglingTransition(this IStateConstruction src, Button button) {
+            var t = new MultiTransition(src.Graph);
+
+            // Local function
+            void trigger() => t.TriggerManually();
+
+            t.ToEnable(() => button.onClick.AddListener(trigger));
+            t.ToDisable(() => button.onClick.RemoveListener(trigger));
+            src.AddTransition(t);
+            return t;
+        }
+
+        // May want to add generic version for token states.
+        public static ITransitionBuilder MakeDanglingTransition(this IStateConstruction src, Func<bool> when) {
+            var t = new MultiTransition(src.Graph);
+            t.When(when);
+
+            src.AddTransition(t);
+            return t;
+        }
+
         public static void MakeTransition(this IStateConstruction src, NoTokenStateConstruction dest, Func<bool> when) {
             var t = new MultiTransition(src.Graph);
             t.To(dest);
@@ -144,15 +166,17 @@ namespace Hapn {
 
     // Pull out the parts common to ITranitionBuilder that are unrelated to the destination token type.
     public interface IBaseTransitionBuilder {
+        // Transitions with tokens may target no-token states by simply discarding the token.
+        void To(NoTokenStateConstruction dest);
         void ToEnable(Action enable);
         void ToDisable(Action disable);
+        // TODO: this should probably return ITransition. It's currently unused by anything.
         void Build();
     }
 
     // We'll probably need a proper builder later, but just make the Transition be it's own builder for now.
     public interface ITransitionBuilder : IBaseTransitionBuilder {
         //ITransitionBuilder To(EntranceTypes dest);
-        void To(NoTokenStateConstruction dest);
         void When(Func<bool> predicate);
     }
     public interface ITransitionBuilder<T> : IBaseTransitionBuilder {
@@ -242,6 +266,7 @@ namespace Hapn {
     }
     public class MultiTransition<S> : ITransition, ITransitionBuilder<S> {
         private Graph m_graph;
+        private EntranceTypes m_noTokenDest;
         private EntranceTypes<S> m_dest;
         private List<Func<(bool, S)>> m_check = new List<Func<(bool, S)>>();
         // These return a non-null token on transition, null when do-not-transition.
@@ -266,6 +291,9 @@ namespace Hapn {
 
         public void To(EntranceTypes<S> dest) {
             m_dest = dest;
+        }
+        public void To(NoTokenStateConstruction dest) {
+            m_noTokenDest = dest.ToEntranceType();
         }
         public void To(WithTokenStateConstruction<S> dest) {
             m_dest = dest.ToEntranceType();
@@ -304,14 +332,22 @@ namespace Hapn {
             foreach (var predicate in m_check) {
                 var result = predicate();
                 if (result.Item1) {
-                    m_dest.Enter(result.Item2);
+                    if (m_dest != null) {
+                        m_dest.Enter(result.Item2);
+                        return true;
+                    }
+                    // m_noTokenDest.Enter()
                     return true;
                 }
             }
             foreach (var predicate in m_notNullTokenChecks) {
                 var result = predicate();
                 if (result != null) {
-                    m_dest.Enter(result);
+                    if (m_dest != null) {
+                        m_dest.Enter(result);
+                        return true;
+                    }
+                    // m_noTokenDest.Enter()
                     return true;
                 }
             }

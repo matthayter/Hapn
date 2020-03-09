@@ -124,7 +124,7 @@ namespace Hapn {
 
             //////
             m_currentState = destination;
-            if (m_currentState == null) throw new Exception("Somebody messed up the transitions!");
+            if (m_currentState == null) throw new Exception("Hapn: transition occured with null destination!");
             m_currentState.entryTime = Time.time;
             //////
 

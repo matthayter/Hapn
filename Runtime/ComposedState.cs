@@ -204,21 +204,23 @@ namespace Hapn {
 
         public static void BindEaseAnimation(this IStateConstruction state, float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output) {
             var curve = AnimationCurve.EaseInOut(0f, 0f, duration, 1f);
-            Vector3 start = default(Vector3);
-            Vector3 end = default(Vector3);
-            state.AddEntryAction(() => {
-                var values = initValues();
-                start = values.Item1;
-                end = values.Item2;
-            });
-            state.AddEveryFrameAction(() => {
-                float sinceEntry = Time.time - state.entryTime; 
-                if (sinceEntry < duration) {
-                    output(Vector3.Lerp(start, end, curve.Evaluate(sinceEntry)));
-                } else {
-                    output(end);
-                }
-            });
+            state.BindAnimation(duration, Vector3.LerpUnclamped, initValues, output, curve);
+
+            //Vector3 start = default(Vector3);
+            //Vector3 end = default(Vector3);
+            //state.AddEntryAction(() => {
+            //    var values = initValues();
+            //    start = values.Item1;
+            //    end = values.Item2;
+            //});
+            //state.AddEveryFrameAction(() => {
+            //    float sinceEntry = Time.time - state.entryTime; 
+            //    if (sinceEntry < duration) {
+            //        output(Vector3.Lerp(start, end, curve.Evaluate(sinceEntry)));
+            //    } else {
+            //        output(end);
+            //    }
+            //});
         }
 
         public static void BindEaseAnimation(this IStateConstruction state, float duration, Func<(float, float)> initValues, Action<float> output) {
@@ -347,8 +349,5 @@ namespace Hapn {
                 () => (cg.alpha, 0f),
                 (float v) => cg.alpha = v);
         }
-
-
     }
-
 }
