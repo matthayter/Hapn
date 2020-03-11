@@ -21,6 +21,7 @@ namespace Hapn {
         public List<Action> negativeExitActions { get; } = new List<Action>();
         public List<StateGroup> groups { get; set; }  = new List<StateGroup>();
         public float entryTime { get; set; } = 0f;
+        public float exitTime { get; set; } = 0f;
         public Graph Graph { get; set; }
         public string Name { get; }
 
@@ -110,6 +111,7 @@ namespace Hapn {
         public List<Action> negativeExitActions { get; } = new List<Action>();
         public List<StateGroup> groups { get; set; }  = new List<StateGroup>();
         public float entryTime { get; set; } = 0f;
+        public float exitTime { get; set; } = 0f;
         public Graph Graph { get; set; }
         public string Name { get; }
 
@@ -195,7 +197,7 @@ namespace Hapn {
 
     public static class ComposedStateExtensions {
 
-        public static void BindBool(this IStateConstruction state, Action<bool> action)
+        public static void BindBool(this IEnterable state, Action<bool> action)
         {
             state.AddEntryAction(() => action(true));
             state.AddNegativeEntryAction(() => action(false));
@@ -223,32 +225,32 @@ namespace Hapn {
             //});
         }
 
-        public static void BindEaseAnimation(this IStateConstruction state, float duration, Func<(float, float)> initValues, Action<float> output) {
+        public static void BindEaseAnimation(this IEnterable state, float duration, Func<(float, float)> initValues, Action<float> output) {
             var curve = AnimationCurve.EaseInOut(0f, 0f, duration, 1f);
             state.BindAnimation(duration, curve, initValues, output);
         }
 
-        public static void BindAnimation(this IStateConstruction state, float duration, AnimationCurve curve, Func<(float, float)> initValues, Action<float> output) {
+        public static void BindAnimation(this IEnterable state, float duration, AnimationCurve curve, Func<(float, float)> initValues, Action<float> output) {
             state.BindAnimation(duration, AdditionalHelpers.LerpFloat, initValues, output, curve);
         }
 
-        public static void BindHapnTween(this IStateConstruction state, HapnTweenAdapter tween) {
+        public static void BindHapnTween(this IEnterable state, HapnTweenAdapter tween) {
             state.BindAnimation(tween.duration, AdditionalHelpers.LerpVec2, () => (tween.startPos, tween.endPos), (val) => tween.toChange?.Invoke(val), tween.curve);
         }
 
-        public static void BindHapnTween(this IStateConstruction state, HapnAnchorTweenAdapter tween) {
+        public static void BindHapnTween(this IEnterable state, HapnAnchorTweenAdapter tween) {
             state.BindAnimation(tween.duration, AdditionalHelpers.LerpRect, () => (tween.startOrActiveAnchors, tween.endOrInactiveAnchors), (val) => tween.SetAnchors(val), tween.curve);
         }
 
-        public static void BindHapnTweenBothWays(this IStateConstruction state, HapnTweenAdapter tween) {
+        public static void BindHapnTweenBothWays(this IEnterable state, HapnTweenAdapter tween) {
             state.BindAnimationBothWays(() => tween.duration, AdditionalHelpers.LerpVec2, tween.startPos, tween.endPos, (val) => tween.toChange?.Invoke(val), tween.curve);
         }
 
-        public static void BindHapnTweenBothWays(this IStateConstruction state, HapnAnchorTweenAdapter tween) {
+        public static void BindHapnTweenBothWays(this IEnterable state, HapnAnchorTweenAdapter tween) {
             state.BindAnimationBothWays(() => tween.duration, AdditionalHelpers.LerpRect, tween.startOrActiveAnchors, tween.endOrInactiveAnchors, (val) => tween.SetAnchors(val), tween.curve);
         }
 
-        public static void BindAnimationBothWays<T>(this IStateConstruction state, Func<float> getDuration, Func<T, T, float, T> lerp, T inState, T outState, Action<T> output, AnimationCurve curve) {
+        public static void BindAnimationBothWays<T>(this IEnterable state, Func<float> getDuration, Func<T, T, float, T> lerp, T inState, T outState, Action<T> output, AnimationCurve curve) {
             float timeIntoActivePosition = 0f;
             bool started = false;
             float duration = 0f;
@@ -300,7 +302,7 @@ namespace Hapn {
         }
 
         // Returns: A function to get whether the animation is finished.
-        public static Func<bool> BindAnimation<T>(this IStateConstruction state, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve) {
+        public static Func<bool> BindAnimation<T>(this IEnterable state, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve) {
             T start = default(T);
             T end = default(T);
             bool done = false;
@@ -334,7 +336,7 @@ namespace Hapn {
             });
         }
 
-        public static void BindCanvasGroupFadeInOut(this IStateConstruction state, IStateConstruction fadeOutState, CanvasGroup cg) {
+        public static void BindCanvasGroupFadeInOut(this IEnterable state, CanvasGroup cg) {
             state.BindBool(isOn => {
                 cg.blocksRaycasts = isOn;
                 cg.interactable = isOn;
@@ -344,10 +346,12 @@ namespace Hapn {
                 0.5f,
                 () => (cg.alpha, 1f),
                 (float v) => cg.alpha = v);
-            fadeOutState.BindEaseAnimation(
+            new InvertedStateConstruction(state).BindEaseAnimation(
                 0.5f,
                 () => (cg.alpha, 0f),
-                (float v) => cg.alpha = v);
+                (float v) => {
+                    cg.alpha = v;
+                });
         }
     }
 }

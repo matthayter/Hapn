@@ -58,6 +58,7 @@ namespace Hapn.UniRx {
                         successTransitionShouldTrigger = true;
                     }
                 } catch (Exception eInstance) {
+                    Debug.LogException(eInstance);
                     if (thisTasksCounter == execCounter) {
                         e = eInstance;
                     }
@@ -71,7 +72,9 @@ namespace Hapn.UniRx {
             state.AddTransition(tSuccess);
 
             tSuccess.When(() => successTransitionShouldTrigger);
-            tFail.When(() => e);
+            tFail.When(() => {
+                return e;
+            });
             return (tSuccess, tFail);
         }
 

@@ -28,6 +28,7 @@ namespace Hapn
         public List<Action> negativeExitActions { get; } = new List<Action>();
         public List<StateGroup> groups { get; set; }  = new List<StateGroup>();
         public float entryTime { get; set; } = 0f;
+        public float exitTime { get; set; } = 0f;
         public Graph Graph { get; set; }
         public string Name { get; }
 
@@ -129,6 +130,7 @@ namespace Hapn
         public List<StateGroup> groups { get; set; }  = new List<StateGroup>();
         public Graph Graph { get; set; }
         public float entryTime { get; set; } = 0f;
+        public float exitTime { get; set; } = 0f;
         public string Name { get; }
 
         public BaseState(string name) {
@@ -238,6 +240,7 @@ namespace Hapn
         // May need to change later
         List<StateGroup> groups { get; }
         float entryTime { get; set; }
+        float exitTime { get; set; }
         string Name { get; }
 
         // These are functions instead of getters to allow the Actions to be typed to the tokens
@@ -252,8 +255,8 @@ namespace Hapn
         void RunNegativeExitActions();
     }
 
-    // Used by all the building mechanisms. Abstracts over states that can be built on/around
-    public interface IStateConstruction {
+    // Common concepts between states and state-groups. Might need a better name.
+    public interface IEnterable {
         // Entry Actions occur before outgoing transitions are enabled and checked.
         void AddEntryAction(Action action);
         // Exit actions occur after outgoing transitions have been disabled. EveryFrameActions are guarenteed not to occur afterwards, until state is entered again.
@@ -263,11 +266,16 @@ namespace Hapn
         // Exit actions occur after outgoing transitions have been disabled. EveryFrameActions are guarenteed not to occur afterwards, until state is entered again.
         void AddNegativeExitAction(Action action);
         void AddNegativeEveryFrameAction(Action action);
+        float entryTime { get; }
+        float exitTime { get; }
+    }
+
+    // Used by all the building mechanisms. Abstracts over states that can be built on/around
+    public interface IStateConstruction : IEnterable {
         void AddTransition(ITransition t);
         void AddGroup(StateGroup sg);
         Graph Graph { get; }
 
-        float entryTime { get; }
         IState ToRuntimeState();
     }
     public interface NoTokenStateConstruction : IStateConstruction {
@@ -278,17 +286,18 @@ namespace Hapn
         EntranceTypes<T> ToEntranceType();
     }
 
-    public struct InvertedStateConstruction : IStateConstruction {
-        private IStateConstruction m_baseState;
-        public InvertedStateConstruction(IStateConstruction baseState) {
+    public class InvertedStateConstruction : IEnterable {
+        private IEnterable m_baseState;
+        public InvertedStateConstruction(IEnterable baseState) {
             m_baseState = baseState;
         }
 
-        public Graph Graph => m_baseState.Graph;
+        public float entryTime => m_baseState.exitTime;
+        public float exitTime => m_baseState.entryTime;
 
-        public float entryTime => m_baseState.entryTime;
-
-        public void AddEntryAction(Action action) => m_baseState.AddNegativeEntryAction(action);
+        public void AddEntryAction(Action action) {
+            m_baseState.AddNegativeEntryAction(action);
+        }
 
         public void AddEveryFrameAction(Action action) {
             m_baseState.AddNegativeEveryFrameAction(action);
@@ -308,19 +317,6 @@ namespace Hapn
 
         public void AddNegativeExitAction(Action action) {
             m_baseState.AddExitAction(action);
-        }
-
-        // Adding a transition to a StateGroup (which a Negative state effectively is) is
-        // not yet supported.
-        public void AddTransition(ITransition t) {
-            m_baseState.AddTransition(t);
-        }
-        public void AddGroup(StateGroup sg) {
-            m_baseState.AddGroup(sg);
-        }
-
-        public IState ToRuntimeState() {
-            return m_baseState.ToRuntimeState();
         }
     }
 
@@ -392,6 +388,13 @@ namespace Hapn
             graph.AddState(state);
             return state;
         }
+
+        public static StateGroup NewStateGroup(this Graph graph, string name) {
+            var sg = new StateGroup(name);
+            graph.AddGroup(sg);
+            return sg;
+        }
+
 
         public static (NoTokenStateConstruction state, ITransitionBuilder transition) StateFromEaseIn(this Graph graph, float duration, Func<(float, float)> initValues, Action<float> output) {
             var curve = AnimationCurve.EaseInOut(0f, 0f, duration, 1f);

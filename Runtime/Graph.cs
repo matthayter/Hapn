@@ -48,18 +48,22 @@ namespace Hapn {
                 // Groups
                 foreach (StateGroup sg in m_currentState.groups) {
                     m_activeGroups.Add(sg);
+                    sg.entryTime = Time.time;
                     sg.RunEntryActions();
                 }
                 // Negative groups
                 m_inactiveGroups = new HashSet<StateGroup>(m_allGroups.Except(m_activeGroups));
                 foreach (var sg in m_inactiveGroups) {
+                    sg.exitTime = Time.time;
                     sg.RunNegativeEntryActions();
                 }
 
                 foreach (IState i in m_stateSet) {
                     if (i == m_currentState) continue;
+                    i.exitTime = Time.time;
                     i.RunNegativeEntryActions();
                 }
+                m_currentState.entryTime = Time.time;
                 m_currentState.RunEntryActions();
                 foreach (ITransition t in m_currentState.transitions) {
                     t.Enable();
@@ -97,8 +101,20 @@ namespace Hapn {
             DoTransitionWork(destination);
         }
 
-        // Tries to avoid allocation at the possible expense of time
+        /* For now, Ordering of events looks like this, when exiting state A and entering state B:
+         * IN STATE A
+         * Disable A transitions
+         * Exit State A
+         * Exit State A Groups (includes negative(B))
+         * -----------
+         * Enter State B Groups (includes negative(A))
+         * Enter State B
+         * Enable B transitions
+         * IN STATE B
+        */
+        // Tries to avoid allocation at the possible expense of time by testing Set membership multiple times instead of creating new sets with SetA.except(SetB) etc
         private void DoTransitionWork(IState destination) {
+            if (destination == null) throw new Exception("Hapn: transition occured with null destination!");
             if (m_logDebug) Debug.LogFormat("Graph [{0}]: {1} -> {2}", m_name, m_currentState.Name, destination.Name);
             var outgoingState = m_currentState;
             foreach (ITransition u in m_currentState.transitions) {
@@ -112,6 +128,7 @@ namespace Hapn {
             // Exiting groups: active.except(destGroups)
             foreach (var sg in m_activeGroups) {
                 if (!destination.groups.Contains(sg)) {
+                    if (m_logDebug) Debug.LogFormat("Graph [{0}]: Exiting group {1}", m_name, sg.name);
                     sg.RunExitActions();
                 }
             }
@@ -124,13 +141,14 @@ namespace Hapn {
 
             //////
             m_currentState = destination;
-            if (m_currentState == null) throw new Exception("Hapn: transition occured with null destination!");
             m_currentState.entryTime = Time.time;
             //////
 
             // Entering Groups again: destGroups.except(active)
             foreach (var sg in destination.groups) {
                 if (!m_activeGroups.Contains(sg)) {
+                    if (m_logDebug) Debug.LogFormat("Graph [{0}]: Entering group {1}", m_name, sg.name);
+                    sg.entryTime = Time.time;
                     sg.RunEntryActions();
                 }
             }
@@ -138,6 +156,7 @@ namespace Hapn {
             // Exiting groups again: active.except(destGroups)
             foreach (var sg in m_activeGroups) {
                 if (!destination.groups.Contains(sg)) {
+                    sg.exitTime = Time.time;
                     sg.RunNegativeEntryActions();
                 }
             }
@@ -155,7 +174,9 @@ namespace Hapn {
             }
 
             // Run entry actions of the negativeState for the outgoing state
+            outgoingState.exitTime = Time.time;
             outgoingState.RunNegativeEntryActions();
+
             m_currentState.RunEntryActions();
             foreach (ITransition u in m_currentState.transitions) {
                 u.Enable();

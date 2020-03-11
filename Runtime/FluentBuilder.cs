@@ -18,6 +18,7 @@ namespace Hapn
         private Dictionary<string, IStateConstruction> m_states = new Dictionary<string, IStateConstruction>();
         // Transitions leading to a state that has not yet been declared.
         private Dictionary<string, List<IBaseTransitionBuilder>> m_waitingTransitions = new Dictionary<string, List<IBaseTransitionBuilder>>();
+        private Dictionary<string, List<StateGroup>> m_waitingStateGroups = new Dictionary<string, List<StateGroup>>();
         private List<IBaseTransitionBuilder> m_transitionsToNextState = new List<IBaseTransitionBuilder>(5);
 
         public FluentBuilder(Graph g) {
@@ -25,12 +26,21 @@ namespace Hapn
             m_stateInContext = null;
         }
 
-        public FluentBuilder StateGroup(string name) {
-            return this;
-        }
-
-        public FluentBuilder EndGroup() {
-            return this;
+        public FluentBuilderStateGroup StateGroup(string name, params string[] states) {
+            StateGroup sg = m_graph.NewStateGroup(name);
+            foreach (string stateName in states) {
+                if (m_states.ContainsKey(stateName)) {
+                    m_states[stateName].AddGroup(sg);
+                } else {
+                    if (m_waitingStateGroups.ContainsKey(stateName)) {
+                        m_waitingStateGroups[stateName].Add(sg);
+                    } else {
+                        m_waitingStateGroups[stateName] = new List<StateGroup>(5) { sg };
+                    }
+                }
+            }
+            var builder = new FluentBuilderStateGroup(sg, this);
+            return builder;
         }
 
         public FluentBuilder State(string name) {
@@ -48,6 +58,7 @@ namespace Hapn
                 m_waitingTransitions.Remove(name);
             }
 
+            LinkWaitingThingsToNewState(name, newState);
             AssignTransitionsAndClear(newState);
 
             return this;
@@ -71,6 +82,8 @@ namespace Hapn
                 m_waitingTransitions.Remove(name);
             }
 
+            LinkWaitingThingsToNewState(name, newState);
+
             foreach (var t in m_transitionsToNextState) {
                 var castTransition = t as ITransitionBuilder<T>;
                 if (t == null) throw new InvalidOperationException("A transition was waiting to be connected to a state with a different token type (or no token) compared to the new state");
@@ -79,6 +92,17 @@ namespace Hapn
             m_transitionsToNextState.Clear();
 
             return this;
+        }
+
+        private void LinkWaitingThingsToNewState(string name, IStateConstruction state) {
+            if (m_waitingStateGroups.ContainsKey(name)) {
+                foreach (var sg in m_waitingStateGroups[name]) {
+                    // Transitions with- and without-tokens can transition to no-token states.
+                    state.AddGroup(sg);
+                }
+                m_waitingTransitions.Remove(name);
+            }
+
         }
 
         private void AssignTransitionsAndClear(NoTokenStateConstruction newState) {
@@ -112,6 +136,7 @@ namespace Hapn
             var res = m_graph.StateFromAnimationCurve(name, duration, initValues, output, curve);
             m_stateInContext = res.state;
 
+            LinkWaitingThingsToNewState(name, res.state);
             AssignTransitionsAndClear(res.state);
 
             m_transitionsToNextState.Add(res.transition);
@@ -243,7 +268,7 @@ namespace Hapn
         }
 
         public FluentBuilder BindCanvasFadeInOut(CanvasGroup cg) {
-            m_stateInContext.BindCanvasGroupFadeInOut(new InvertedStateConstruction(m_stateInContext), cg);
+            m_stateInContext.BindCanvasGroupFadeInOut(cg);
             return this;
         }
 
@@ -276,6 +301,37 @@ namespace Hapn
                 action(currentState);
             });
             return this;
+        }
+    }
+
+    public class FluentBuilderStateGroup {
+        private StateGroup m_stateGroup;
+        private FluentBuilder m_parent;
+
+        public FluentBuilderStateGroup(StateGroup sg, FluentBuilder parent) {
+            this.m_stateGroup = sg;
+            this.m_parent = parent;
+        }
+
+        public FluentBuilderStateGroup OnEntry(Action a) {
+            m_stateGroup.AddEntryAction(a);
+            return this;
+        }
+
+        public FluentBuilderStateGroup BindGameObjectActiveState(GameObject go) {
+            m_stateGroup.BindBool((isOn) => {
+                go.SetActive(isOn);
+            });
+            return this;
+        }
+
+        public FluentBuilderStateGroup BindCanvasFadeInOut(CanvasGroup canvasGroup) {
+            m_stateGroup.BindCanvasGroupFadeInOut(canvasGroup);
+            return this;
+        }
+
+        public FluentBuilder CloseStateGroup() {
+            return m_parent;
         }
     }
 }

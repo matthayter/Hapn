@@ -370,7 +370,8 @@ namespace Hapn {
         }
 
         public IState GetDestination() {
-            return m_dest;
+            if (m_dest != null) return m_dest;
+            return m_noTokenDest;
         }
     }
 

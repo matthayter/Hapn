@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 
 namespace Hapn {
-    public class StateGroup {
+    public class StateGroup : IEnterable {
+        public string name;
         // Shared with State:
         // entry, exit, everyFrame actions
         public List<Action> entryActions { get; } = new List<Action>();
@@ -12,11 +13,20 @@ namespace Hapn {
         public List<Action> negativeEntryActions { get; } = new List<Action>();
         public List<Action> negativeEveryFrameActions { get; } = new List<Action>();
         public List<Action> negativeExitActions { get; } = new List<Action>();
+
+
+        public float entryTime { get; set; } = 0f;
+        public float exitTime { get; set; } = 0f;
         // NOT transitions... yet
+
+        public StateGroup(string name) {
+            this.name = name;
+        }
 
         public void AddEntryAction(Action action) {
             entryActions.Add(action);
         }
+
         public void AddExitAction(Action action) {
             exitActions.Add(action);
         }
