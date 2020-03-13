@@ -192,7 +192,7 @@ namespace Hapn
             var (tPass, tFail) = m_stateInContext.BindAsyncLamdaAndTransitionByResult(f);
             LinkTransition(tFail, errorDest);
             if (successDest != null) {
-                LinkTransition(tPass, successDest);
+                TryToLinkTransition(tPass, successDest);
             } else {
                 m_transitionsToNextState.Add(tPass);
             }
@@ -205,18 +205,32 @@ namespace Hapn
             return this;
         }
 
-        public FluentBuilder TransitionAfter(float seconds, string dest = null) {
-            var state = m_stateInContext.ToRuntimeState();
-            var t = m_stateInContext.MakeDanglingTransition(() => state.GetTimeSinceEntry() > seconds);
+        public FluentBuilder TransitionWhen(Func<bool> test, string dest = null) {
+            var t = m_stateInContext.MakeDanglingTransition(test);
             if (dest != null) {
-                LinkTransition(t, dest);
+                TryToLinkTransition(t, dest);
             } else {
                 m_transitionsToNextState.Add(t);
             }
             return this;
         }
 
-        private void LinkTransition(ITransitionBuilder t, string dest) {
+        public FluentBuilder TransitionImmediately(string dest = null) {
+            return this.TransitionWhen(() => true, dest);
+        }
+
+        public FluentBuilder TransitionAfter(float seconds, string dest = null) {
+            var state = m_stateInContext.ToRuntimeState();
+            var t = m_stateInContext.MakeDanglingTransition(() => state.GetTimeSinceEntry() > seconds);
+            if (dest != null) {
+                TryToLinkTransition(t, dest);
+            } else {
+                m_transitionsToNextState.Add(t);
+            }
+            return this;
+        }
+
+        private void TryToLinkTransition(ITransitionBuilder t, string dest) {
             if (m_states.ContainsKey(dest)) {
                 if (m_states[dest] is NoTokenStateConstruction typedDest) {
                     t.To(typedDest);
@@ -250,13 +264,22 @@ namespace Hapn
             }
         }
 
-        public FluentBuilder TransitionOn(Button b, string dest = null) {
-            ITransitionBuilder t = m_stateInContext.MakeDanglingTransition(b);
+        public FluentBuilder TransitionOn(Button button, string dest = null) {
+            ITransitionBuilder t = m_stateInContext.MakeDanglingTransition(button);
             if (dest != null) {
-                LinkTransition(t, dest);
+                TryToLinkTransition(t, dest);
             } else {
                 m_transitionsToNextState.Add(t);
             }
+            return this;
+        }
+
+        public FluentBuilder TransitionOnButtonByResult(Button button, Func<bool> test, string trueDest, string falseDest) {
+            var (onFalse, onTrue) = m_stateInContext.MakeBranchedTransitions(button, test);
+
+            TryToLinkTransition(onFalse, falseDest);
+            TryToLinkTransition(onTrue, trueDest);
+
             return this;
         }
 

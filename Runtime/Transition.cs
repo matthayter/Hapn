@@ -83,6 +83,28 @@ namespace Hapn {
             return t;
         }
 
+        public static (ITransitionBuilder onFalse, ITransitionBuilder onTrue) MakeBranchedTransitions(this IStateConstruction src, Button button, Func<bool> test) {
+            var trueTransition = new MultiTransition(src.Graph);
+            var falseTransition = new MultiTransition(src.Graph);
+
+            // Local function
+            void trigger() {
+                bool result = test();
+                if (result) {
+                    trueTransition.TriggerManually();
+                } else {
+                    falseTransition.TriggerManually();
+                }
+            }
+
+            trueTransition.ToEnable(() => button.onClick.AddListener(trigger));
+            trueTransition.ToDisable(() => button.onClick.RemoveListener(trigger));
+
+            src.AddTransition(trueTransition);
+            src.AddTransition(falseTransition);
+            return (falseTransition, trueTransition);
+        }
+
         public static void MakeTransition(this IStateConstruction src, NoTokenStateConstruction dest, Func<bool> when) {
             var t = new MultiTransition(src.Graph);
             t.To(dest);
