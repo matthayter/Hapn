@@ -16,6 +16,7 @@ namespace Hapn
         private Graph m_graph;
         private IStateConstruction m_stateInContext;
         private Dictionary<string, IStateConstruction> m_states = new Dictionary<string, IStateConstruction>();
+        private Dictionary<string, StateGroup> m_stateGroups = new Dictionary<string, StateGroup>();
         // Transitions leading to a state that has not yet been declared.
         private Dictionary<string, List<IBaseTransitionBuilder>> m_waitingTransitions = new Dictionary<string, List<IBaseTransitionBuilder>>();
         private Dictionary<string, List<StateGroup>> m_waitingStateGroups = new Dictionary<string, List<StateGroup>>();
@@ -26,8 +27,12 @@ namespace Hapn
             m_stateInContext = null;
         }
 
+        // Declare a new StateGroup, independent of the state in context.
         public FluentBuilderStateGroup StateGroup(string name, params string[] states) {
-            StateGroup sg = m_graph.NewStateGroup(name);
+            if (!m_stateGroups.ContainsKey(name)) {
+                m_stateGroups[name] = m_graph.NewStateGroup(name);
+            }
+            StateGroup sg = m_stateGroups[name];
             foreach (string stateName in states) {
                 if (m_states.ContainsKey(stateName)) {
                     m_states[stateName].AddGroup(sg);
@@ -41,6 +46,17 @@ namespace Hapn
             }
             var builder = new FluentBuilderStateGroup(sg, this);
             return builder;
+        }
+
+        // Add a stateGroup to the state in context.
+        public FluentBuilder InStateGroups(params string[] stateGroupNames) {
+            foreach (string sgName in stateGroupNames) {
+                if (!m_stateGroups.ContainsKey(sgName)) {
+                    m_stateGroups[sgName] = m_graph.NewStateGroup(sgName);
+                }
+                m_stateInContext.AddGroup(m_stateGroups[sgName]);
+            }
+            return this;
         }
 
         public FluentBuilder State(string name) {
@@ -199,9 +215,25 @@ namespace Hapn
             return this;
         }
 
-        public FluentBuilder TransitionAfter(Func<UniTask> f) {
+        public FluentBuilder TransitionByResult(Func<UniTask<bool>> f, string errorDest, string successDest = null) {
+            var (tPass, tFail) = m_stateInContext.BindAsyncLamdaAndTransitionByResult(f);
+            LinkTransition(tFail, errorDest);
+            if (successDest != null) {
+                TryToLinkTransition(tPass, successDest);
+            } else {
+                m_transitionsToNextState.Add(tPass);
+            }
+            return this;
+        }
+
+
+        public FluentBuilder TransitionAfter(Func<UniTask> f, string dest = null) {
             var t = m_stateInContext.BindAsyncLamdaAndTransitionOnDone(f);
-            m_transitionsToNextState.Add(t);
+            if (dest != null) {
+                TryToLinkTransition(t, dest);
+            } else {
+                m_transitionsToNextState.Add(t);
+            }
             return this;
         }
 
@@ -314,6 +346,21 @@ namespace Hapn
 
         public FluentBuilder OnUpdate(Action action) {
             m_stateInContext.AddEveryFrameAction(action);
+            return this;
+        }
+
+        public FluentBuilder OnNegativeEntry(Action action) {
+            m_stateInContext.AddNegativeEntryAction(action);
+            return this;
+        }
+
+        public FluentBuilder OnNegativeExit(Action action) {
+            m_stateInContext.AddNegativeExitAction(action);
+            return this;
+        }
+
+        public FluentBuilder OnNegativeUpdate(Action action) {
+            m_stateInContext.AddNegativeEveryFrameAction(action);
             return this;
         }
 

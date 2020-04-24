@@ -41,6 +41,10 @@ namespace Hapn.UniRx {
         }
 
         public static (ITransitionBuilder success, ITransitionBuilder<Exception> fail) BindAsyncLamdaAndTransitionByResult(this IStateConstruction state, Func<UniTask> task) {
+            return state.BindAsyncLamdaAndTransitionByResult(() => task().ContinueWith(() => true));
+        }
+
+        public static (ITransitionBuilder success, ITransitionBuilder<Exception> fail) BindAsyncLamdaAndTransitionByResult(this IStateConstruction state, Func<UniTask<bool>> task) {
             // If the state is entered then exited then entered again before the first UniTask completes,
             // we need a way to have the first task not cause a transition. Avoid alloc by using a simple counter.
             uint execCounter = 0;
@@ -53,9 +57,13 @@ namespace Hapn.UniRx {
                 uint thisTasksCounter = execCounter;
 
                 try {
-                    await task();
+                    bool result = await task();
                     if (thisTasksCounter == execCounter) {
-                        successTransitionShouldTrigger = true;
+                        if (result) {
+                            successTransitionShouldTrigger = true;
+                        } else {
+                            e = new Exception("Test returned false");
+                        }
                     }
                 } catch (Exception eInstance) {
                     Debug.LogException(eInstance);
