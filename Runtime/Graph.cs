@@ -142,6 +142,9 @@ namespace Hapn {
             //////
             m_currentState = destination;
             m_currentState.entryTime = Time.time;
+            if (m_currentState.transitions.Count == 0) {
+                Debug.LogWarningFormat("Current state '{0}' has no transitions. This state will never exit.", m_currentState.Name);
+            }
             //////
 
             // Entering Groups again: destGroups.except(active)
