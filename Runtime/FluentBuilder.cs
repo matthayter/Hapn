@@ -3,10 +3,14 @@ using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UI;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 using UniRx.Async;
 using Hapn.UniRx;
 using Hapn;
+
 
 namespace Hapn
 {
@@ -26,6 +30,11 @@ namespace Hapn
             m_graph = g;
             m_stateInContext = null;
         }
+
+        // Dependency injection
+#if ENABLE_INPUT_SYSTEM
+        //public FluentBuilder UseInputAsset(params string[] stateGroupNames) {
+#endif
 
         // Declare a new StateGroup, independent of the state in context.
         public FluentBuilderStateGroup StateGroup(string name, params string[] states) {
@@ -160,7 +169,7 @@ namespace Hapn
             return this;
         }
 
-        public FluentBuilder Init() {
+        public FluentBuilder MarkInitial() {
             m_graph.SetInitState(m_stateInContext.ToRuntimeState());
             return this;
         }
@@ -176,16 +185,39 @@ namespace Hapn
             return this;
         }
 
-        public FluentBuilder ManualTransition(Action<Action> assignTrigger) {
+        public FluentBuilder TransitionByTrigger(out Action trigger, string dest = null) {
+            if (m_stateInContext == null) {
+                throw new InvalidOperationException("Create a state before making a transition.");
+            }
+
+            ITransitionBuilder transition;
+            (transition, trigger) = m_stateInContext.MakeManualDanglingTransition();
+
+            if (dest != null) {
+                TryToLinkTransition(transition, dest);
+            } else {
+                m_transitionsToNextState.Add(transition);
+            }
+
+            return this;
+        }
+
+        public FluentBuilder TransitionByTrigger(Action<Action> assignTrigger, string dest = null) {
             if (m_stateInContext == null) {
                 throw new InvalidOperationException("Create a state before making a transition.");
             }
             var (transition, trigger) = m_stateInContext.MakeManualDanglingTransition();
             assignTrigger(trigger);
-            m_transitionsToNextState.Add(transition);
+
+            if (dest != null) {
+                TryToLinkTransition(transition, dest);
+            } else {
+                m_transitionsToNextState.Add(transition);
+            }
 
             return this;
         }
+
         public FluentBuilder ManualTransition<T>(Action<Action<T>> assignTrigger) {
             if (m_stateInContext == null) {
                 throw new InvalidOperationException("Create a state before making a transition.");
@@ -204,7 +236,26 @@ namespace Hapn
         //    return this;
         //}
 
-        public FluentBuilder TransitionByResult(Func<UniTask> f, string errorDest, string successDest = null) {
+#if ENABLE_INPUT_SYSTEM
+        public FluentBuilder TransitionOnButtonInput(InputAction input, string dest = null) {
+            var t = new MultiTransition(m_graph);
+
+            Action<InputAction.CallbackContext> trigger = (inputContext) => t.TriggerManually();
+
+            t.ToEnable(() => input.started += trigger);
+            t.ToDisable(() => input.started -= trigger);
+            m_stateInContext.AddTransition(t);
+
+            if (dest != null) {
+                TryToLinkTransition(t, dest);
+            } else {
+                m_transitionsToNextState.Add(t);
+            }
+            return this;
+        }
+#endif
+
+            public FluentBuilder TransitionByResult(Func<UniTask> f, string errorDest, string successDest = null) {
             var (tPass, tFail) = m_stateInContext.BindAsyncLamdaAndTransitionByResult(f);
             LinkTransition(tFail, errorDest);
             if (successDest != null) {
@@ -229,6 +280,17 @@ namespace Hapn
 
         public FluentBuilder TransitionAfter(Func<UniTask> f, string dest = null) {
             var t = m_stateInContext.BindAsyncLamdaAndTransitionOnDone(f);
+            if (dest != null) {
+                TryToLinkTransition(t, dest);
+            } else {
+                m_transitionsToNextState.Add(t);
+            }
+            return this;
+        }
+
+        public FluentBuilder TransitionBySubscribing<T>(System.Action<T> target, string dest = null) {
+            var (t, trigger) = m_stateInContext.MakeManualDanglingTransition();
+            target += (s) => trigger();
             if (dest != null) {
                 TryToLinkTransition(t, dest);
             } else {
@@ -315,6 +377,11 @@ namespace Hapn
             return this;
         }
 
+        public FluentBuilder BindBool(Action<bool> action) {
+            m_stateInContext.BindBool(action);
+            return this;
+        }
+
         public FluentBuilder BindGameObjectActiveState(GameObject go) {
             m_stateInContext.BindBool((isOn) => {
                 go.SetActive(isOn);
@@ -385,6 +452,11 @@ namespace Hapn
 
         public FluentBuilderStateGroup OnEntry(Action a) {
             m_stateGroup.AddEntryAction(a);
+            return this;
+        }
+
+        public FluentBuilderStateGroup BindBool(Action<bool> action) {
+            m_stateGroup.BindBool(action);
             return this;
         }
 
