@@ -1,8 +1,8 @@
 {
     "name": "MatteDev.Hapn",
     "references": [
-        "UniRx.Async",
-		"Unity.InputSystem"
+        "UniTask",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -3,13 +3,14 @@ using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Events;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
 
-using UniRx.Async;
 using Hapn.UniRx;
 using Hapn;
+using Cysharp.Threading.Tasks;
 
 
 namespace Hapn
@@ -137,23 +138,50 @@ namespace Hapn
             m_transitionsToNextState.Clear();
         }
 
-        public FluentBuilder BindLinearAnimationAndTransitionOnDone(float duration, Func<(float, float)> initValues, Action<float> output) {
-            var t = m_stateInContext.BindAnimationAndTransitionOnDone(duration, AdditionalHelpers.LerpFloat, initValues, output, AnimationCurve.Linear(0f, 0f, 1f, 1f));
-            m_transitionsToNextState.Add(t);
-            return this;
-        }
-        public FluentBuilder BindLinearAnimationAndTransitionOnDone(float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output) {
-            var t = m_stateInContext.BindAnimationAndTransitionOnDone(duration, Vector3.LerpUnclamped, initValues, output, AnimationCurve.Linear(0f, 0f, 1f, 1f));
-            m_transitionsToNextState.Add(t);
+        public FluentBuilder BindFloat(float duration, Action<float> output) {
+            m_stateInContext.BindFloat(duration, output);
             return this;
         }
 
-        public FluentBuilder BindLinearAnimation(float duration, Func<(float, float)> initValues, Action<float> output) {
-            m_stateInContext.BindAnimation(duration, AdditionalHelpers.LerpFloat, initValues, output, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+        public FluentBuilder BindFloat(float duration, float outVal, float inVal, Action<float> action) {
+            m_stateInContext.BindFloat(duration, outVal, inVal, action);
             return this;
         }
-        public FluentBuilder BindLinearAnimation(float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output) {
-            m_stateInContext.BindAnimation(duration, Vector3.LerpUnclamped, initValues, output, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+
+        public FluentBuilder BindVector3(float duration, Vector3 outVal, Vector3 inVal, Action<Vector3> action) {
+            m_stateInContext.BindVector3(duration, outVal, inVal, action);
+            return this;
+        }
+
+        public FluentBuilder BindQuaternion(float duration, Quaternion outVal, Quaternion inVal, Action<Quaternion> action) {
+            m_stateInContext.BindQuaternion(duration, outVal, inVal, action);
+            return this;
+        }
+
+        public FluentBuilder BindColor(float duration, Color outVal, Color inVal, Action<Color> action) {
+            m_stateInContext.BindColor(duration, outVal, inVal, action);
+            return this;
+        }
+
+        public FluentBuilder EntryAnimationAndTransitionOnDone(float duration, Func<(float, float)> initValues, Action<float> output, AnimationCurve curve = null, string dest = null) {
+            if (curve == null) curve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            var t = m_stateInContext.EntryAnimationAndTransitionOnDone(duration, Mathf.Lerp, initValues, output, curve);
+            LinkTransition(dest, t);
+            return this;
+        }
+        public FluentBuilder EntryAnimationAndTransitionOnDone(float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output, AnimationCurve curve = null, string dest = null) {
+            if (curve == null) curve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            var t = m_stateInContext.EntryAnimationAndTransitionOnDone(duration, Vector3.LerpUnclamped, initValues, output, curve);
+            LinkTransition(dest, t);
+            return this;
+        }
+
+        public FluentBuilder EntryLinearAnimation(float duration, Func<(float, float)> initValues, Action<float> output) {
+            m_stateInContext.EntryAnimation(duration, Mathf.Lerp, initValues, output, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+            return this;
+        }
+        public FluentBuilder EntryLinearAnimation(float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output) {
+            m_stateInContext.EntryAnimation(duration, Vector3.LerpUnclamped, initValues, output, AnimationCurve.Linear(0f, 0f, 1f, 1f));
             return this;
         }
 
@@ -193,11 +221,7 @@ namespace Hapn
             ITransitionBuilder transition;
             (transition, trigger) = m_stateInContext.MakeManualDanglingTransition();
 
-            if (dest != null) {
-                TryToLinkTransition(transition, dest);
-            } else {
-                m_transitionsToNextState.Add(transition);
-            }
+            LinkTransition(dest, transition);
 
             return this;
         }
@@ -229,13 +253,6 @@ namespace Hapn
             return this;
         }
 
-        // f returns a promise for a state-name, which must be one of the names given in `destinations`.
-        // One of the design goals of Hapn is for the state-graph to be immutable at 'run-time', which is why the destinations
-        // must be specified at 'build-time'
-        //public FluentBuilder TransitionBasedOnResult(Func<UniTask<string>> f, params string[] destinations) {
-        //    return this;
-        //}
-
 #if ENABLE_INPUT_SYSTEM
         public FluentBuilder TransitionOnButtonInput(InputAction input, string dest = null) {
             var t = new MultiTransition(m_graph);
@@ -255,57 +272,44 @@ namespace Hapn
         }
 #endif
 
-            public FluentBuilder TransitionByResult(Func<UniTask> f, string errorDest, string successDest = null) {
+        // f returns a promise for a state-name, which must be one of the names given in `destinations`.
+        // One of the design goals of Hapn is for the state-graph to be immutable at 'run-time', which is why the destinations
+        // must be specified at 'build-time'
+        //public FluentBuilder TransitionBasedOnResult(Func<UniTask<string>> f, params string[] destinations) {
+        //    return this;
+        //}
+
+        public FluentBuilder TransitionByResult(Func<UniTask> f, string errorDest, string successDest = null) {
             var (tPass, tFail) = m_stateInContext.BindAsyncLamdaAndTransitionByResult(f);
-            LinkTransition(tFail, errorDest);
-            if (successDest != null) {
-                TryToLinkTransition(tPass, successDest);
-            } else {
-                m_transitionsToNextState.Add(tPass);
-            }
+            TryToLinkTransition(tFail, errorDest);
+            LinkTransition(successDest, tPass);
             return this;
         }
 
         public FluentBuilder TransitionByResult(Func<UniTask<bool>> f, string errorDest, string successDest = null) {
             var (tPass, tFail) = m_stateInContext.BindAsyncLamdaAndTransitionByResult(f);
-            LinkTransition(tFail, errorDest);
-            if (successDest != null) {
-                TryToLinkTransition(tPass, successDest);
-            } else {
-                m_transitionsToNextState.Add(tPass);
-            }
+            TryToLinkTransition(tFail, errorDest);
+            LinkTransition(successDest, tPass);
             return this;
         }
 
 
         public FluentBuilder TransitionAfter(Func<UniTask> f, string dest = null) {
             var t = m_stateInContext.BindAsyncLamdaAndTransitionOnDone(f);
-            if (dest != null) {
-                TryToLinkTransition(t, dest);
-            } else {
-                m_transitionsToNextState.Add(t);
-            }
+            LinkTransition(dest, t);
             return this;
         }
 
         public FluentBuilder TransitionBySubscribing<T>(System.Action<T> target, string dest = null) {
             var (t, trigger) = m_stateInContext.MakeManualDanglingTransition();
             target += (s) => trigger();
-            if (dest != null) {
-                TryToLinkTransition(t, dest);
-            } else {
-                m_transitionsToNextState.Add(t);
-            }
+            LinkTransition(dest, t);
             return this;
         }
 
         public FluentBuilder TransitionWhen(Func<bool> test, string dest = null) {
             var t = m_stateInContext.MakeDanglingTransition(test);
-            if (dest != null) {
-                TryToLinkTransition(t, dest);
-            } else {
-                m_transitionsToNextState.Add(t);
-            }
+            LinkTransition(dest, t);
             return this;
         }
 
@@ -316,46 +320,8 @@ namespace Hapn
         public FluentBuilder TransitionAfter(float seconds, string dest = null) {
             var state = m_stateInContext.ToRuntimeState();
             var t = m_stateInContext.MakeDanglingTransition(() => state.GetTimeSinceEntry() > seconds);
-            if (dest != null) {
-                TryToLinkTransition(t, dest);
-            } else {
-                m_transitionsToNextState.Add(t);
-            }
+            LinkTransition(dest, t);
             return this;
-        }
-
-        private void TryToLinkTransition(ITransitionBuilder t, string dest) {
-            if (m_states.ContainsKey(dest)) {
-                if (m_states[dest] is NoTokenStateConstruction typedDest) {
-                    t.To(typedDest);
-                } else {
-                    Debug.LogError("Fluent Builder: transitions to states that require tokens must provide the token");
-                }
-            } else {
-                if (m_waitingTransitions.ContainsKey(dest)) {
-                    m_waitingTransitions[dest].Add(t);
-                } else {
-                    m_waitingTransitions[dest] = new List<IBaseTransitionBuilder>() { t };
-                }
-            }
-        }
-
-        private void LinkTransition<T>(ITransitionBuilder<T> t, string dest) {
-            if (m_states.ContainsKey(dest)) {
-                if (m_states[dest] is WithTokenStateConstruction<T> typedDest) {
-                    t.To(typedDest);
-                } else if (m_states[dest] is NoTokenStateConstruction noTokenDest) {
-                    t.To(noTokenDest);
-                } else {
-                    Debug.LogErrorFormat("Fluent Builder: Transition provided token of type {0} but destination state required type {1}", typeof(T).ToString(), m_states[dest].GetType().ToString());
-                }
-            } else {
-                if (m_waitingTransitions.ContainsKey(dest)) {
-                    m_waitingTransitions[dest].Add(t);
-                } else {
-                    m_waitingTransitions[dest] = new List<IBaseTransitionBuilder>() { t };
-                }
-            }
         }
 
         public FluentBuilder TransitionOn(Button button, string dest = null) {
@@ -365,6 +331,12 @@ namespace Hapn
             } else {
                 m_transitionsToNextState.Add(t);
             }
+            return this;
+        }
+
+        public FluentBuilder TransitionOn(UnityEvent unityEvent, string dest = null) {
+            ITransitionBuilder t = m_stateInContext.MakeDanglingTransition(unityEvent);
+            LinkTransition(dest, t);
             return this;
         }
 
@@ -439,6 +411,48 @@ namespace Hapn
             });
             return this;
         }
+
+        private void LinkTransition(string dest, ITransitionBuilder t) {
+            if (dest != null) {
+                TryToLinkTransition(t, dest);
+            } else {
+                m_transitionsToNextState.Add(t);
+            }
+        }
+
+        private void TryToLinkTransition(ITransitionBuilder t, string dest) {
+            if (m_states.ContainsKey(dest)) {
+                if (m_states[dest] is NoTokenStateConstruction typedDest) {
+                    t.To(typedDest);
+                } else {
+                    Debug.LogError("Fluent Builder: transitions to states that require tokens must provide the token");
+                }
+            } else {
+                if (m_waitingTransitions.ContainsKey(dest)) {
+                    m_waitingTransitions[dest].Add(t);
+                } else {
+                    m_waitingTransitions[dest] = new List<IBaseTransitionBuilder>() { t };
+                }
+            }
+        }
+
+        private void TryToLinkTransition<T>(ITransitionBuilder<T> t, string dest) {
+            if (m_states.ContainsKey(dest)) {
+                if (m_states[dest] is WithTokenStateConstruction<T> typedDest) {
+                    t.To(typedDest);
+                } else if (m_states[dest] is NoTokenStateConstruction noTokenDest) {
+                    t.To(noTokenDest);
+                } else {
+                    Debug.LogErrorFormat("Fluent Builder: Transition provided token of type {0} but destination state required type {1}", typeof(T).ToString(), m_states[dest].GetType().ToString());
+                }
+            } else {
+                if (m_waitingTransitions.ContainsKey(dest)) {
+                    m_waitingTransitions[dest].Add(t);
+                } else {
+                    m_waitingTransitions[dest] = new List<IBaseTransitionBuilder>() { t };
+                }
+            }
+        }
     }
 
     public class FluentBuilderStateGroup {
@@ -457,6 +471,11 @@ namespace Hapn
 
         public FluentBuilderStateGroup BindBool(Action<bool> action) {
             m_stateGroup.BindBool(action);
+            return this;
+        }
+
+        public FluentBuilderStateGroup BindQuaternion(float duration, Quaternion outVal, Quaternion inVal, Action<Quaternion> action) {
+            m_stateGroup.BindQuaternion(duration, outVal, inVal, action);
             return this;
         }
 

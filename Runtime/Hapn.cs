@@ -143,12 +143,6 @@ namespace Hapn
         // public void Exit() {
         // }
 
-        public CheckedTransition BuildTransition() {
-            CheckedTransition t = new CheckedTransition();
-            transitions.Add(t);
-            return t;
-        }
-
         public void AddTransition(ITransition t) {
             transitions.Add(t);
         }
@@ -411,13 +405,13 @@ namespace Hapn
 
         public static (NoTokenStateConstruction state, ITransitionBuilder transition) StateFromAnimationCurve<T>(this Graph graph, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve, string name = null) {
             var s = graph.NewState(name);
-            var t = s.BindAnimationAndTransitionOnDone(duration, lerp, initValues, output, curve);
+            var t = s.EntryAnimationAndTransitionOnDone(duration, lerp, initValues, output, curve);
             return (s, t);
         }
 
-        public static ITransitionBuilder BindAnimationAndTransitionOnDone<T>(this IStateConstruction s, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve) {
+        public static ITransitionBuilder EntryAnimationAndTransitionOnDone<T>(this IStateConstruction s, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve) {
             var t = new MultiTransition(s.Graph);
-            var isAnimationDone = s.BindAnimation(duration, lerp, initValues, output, curve);
+            var isAnimationDone = s.EntryAnimation(duration, lerp, initValues, output, curve);
             t.When(isAnimationDone);
             s.AddTransition(t);
             return t;

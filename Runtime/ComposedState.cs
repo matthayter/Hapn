@@ -1,12 +1,6 @@
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.Events;
-
 
 namespace Hapn {
 
@@ -25,11 +19,9 @@ namespace Hapn {
         public Graph Graph { get; set; }
         public string Name { get; }
 
-        //public List<StateGroup> groups { get; set; }
-
         public ComposedState (Graph graph, string name) {
-            this.Graph = graph;
-            this.Name = name;
+            Graph = graph;
+            Name = name;
         }
 
         public void RunEveryFrameActions() {
@@ -195,163 +187,4 @@ namespace Hapn {
         }
     }
 
-    public static class ComposedStateExtensions {
-
-        public static void BindBool(this IEnterable state, Action<bool> action)
-        {
-            state.AddEntryAction(() => action(true));
-            state.AddNegativeEntryAction(() => action(false));
-        }
-
-
-        public static void BindEaseAnimation(this IStateConstruction state, float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output) {
-            var curve = AnimationCurve.EaseInOut(0f, 0f, duration, 1f);
-            state.BindAnimation(duration, Vector3.LerpUnclamped, initValues, output, curve);
-
-            //Vector3 start = default(Vector3);
-            //Vector3 end = default(Vector3);
-            //state.AddEntryAction(() => {
-            //    var values = initValues();
-            //    start = values.Item1;
-            //    end = values.Item2;
-            //});
-            //state.AddEveryFrameAction(() => {
-            //    float sinceEntry = Time.time - state.entryTime; 
-            //    if (sinceEntry < duration) {
-            //        output(Vector3.Lerp(start, end, curve.Evaluate(sinceEntry)));
-            //    } else {
-            //        output(end);
-            //    }
-            //});
-        }
-
-        public static void BindEaseAnimation(this IEnterable state, float duration, Func<(float, float)> initValues, Action<float> output) {
-            var curve = AnimationCurve.EaseInOut(0f, 0f, duration, 1f);
-            state.BindAnimation(duration, curve, initValues, output);
-        }
-
-        public static void BindAnimation(this IEnterable state, float duration, AnimationCurve curve, Func<(float, float)> initValues, Action<float> output) {
-            state.BindAnimation(duration, AdditionalHelpers.LerpFloat, initValues, output, curve);
-        }
-
-        public static void BindHapnTween(this IEnterable state, HapnTweenAdapter tween) {
-            state.BindAnimation(tween.duration, AdditionalHelpers.LerpVec2, () => (tween.startPos, tween.endPos), (val) => tween.toChange?.Invoke(val), tween.curve);
-        }
-
-        public static void BindHapnTween(this IEnterable state, HapnAnchorTweenAdapter tween) {
-            state.BindAnimation(tween.duration, AdditionalHelpers.LerpRect, () => (tween.startOrActiveAnchors, tween.endOrInactiveAnchors), (val) => tween.SetAnchors(val), tween.curve);
-        }
-
-        public static void BindHapnTweenBothWays(this IEnterable state, HapnTweenAdapter tween) {
-            state.BindAnimationBothWays(() => tween.duration, AdditionalHelpers.LerpVec2, tween.startPos, tween.endPos, (val) => tween.toChange?.Invoke(val), tween.curve);
-        }
-
-        public static void BindHapnTweenBothWays(this IEnterable state, HapnAnchorTweenAdapter tween) {
-            state.BindAnimationBothWays(() => tween.duration, AdditionalHelpers.LerpRect, tween.startOrActiveAnchors, tween.endOrInactiveAnchors, (val) => tween.SetAnchors(val), tween.curve);
-        }
-
-        public static void BindAnimationBothWays<T>(this IEnterable state, Func<float> getDuration, Func<T, T, float, T> lerp, T inState, T outState, Action<T> output, AnimationCurve curve) {
-            float timeIntoActivePosition = 0f;
-            bool started = false;
-            float duration = 0f;
-
-            state.AddEntryAction(() => {
-                duration = getDuration();
-                timeIntoActivePosition = Mathf.Clamp(timeIntoActivePosition, 0f, duration);
-                if (!started) {
-                    started = true;
-                    // Starting in active position
-                    timeIntoActivePosition = duration;
-                    output(inState);
-                }
-            });
-            state.AddNegativeEntryAction(() => {
-                duration = getDuration();
-                timeIntoActivePosition = Mathf.Clamp(timeIntoActivePosition, 0f, duration);
-                if (!started) {
-                    started = true;
-                    // Starting in inactive position
-                    timeIntoActivePosition = 0f;
-                    output(outState);
-                }
-            });
-            state.AddEveryFrameAction(() => {
-                if (timeIntoActivePosition == duration) return;
-
-                timeIntoActivePosition += Time.deltaTime;
-
-                if (timeIntoActivePosition < duration) {
-                    output(lerp(outState, inState, AdditionalHelpers.EvalCurveNormalized(curve, duration, timeIntoActivePosition)));
-                } else {
-                    timeIntoActivePosition = duration;
-                    output(inState);
-                }
-            });
-            state.AddNegativeEveryFrameAction(() => {
-                if (timeIntoActivePosition == 0f) return;
-
-                timeIntoActivePosition -= Time.deltaTime;
-
-                if (timeIntoActivePosition > 0f) {
-                    output(lerp(outState, inState, AdditionalHelpers.EvalCurveNormalized(curve, duration, timeIntoActivePosition)));
-                } else {
-                    timeIntoActivePosition = 0f;
-                    output(outState);
-                }
-            });
-        }
-
-        // Returns: A function to get whether the animation is finished.
-        public static Func<bool> BindAnimation<T>(this IEnterable state, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve) {
-            T start = default(T);
-            T end = default(T);
-            bool done = false;
-            state.AddEntryAction(() => {
-                (start, end) = initValues();
-                done = false;
-            });
-            state.AddEveryFrameAction(() => {
-                if (done) return;
-                float sinceEntry = Time.time - state.entryTime;
-                if (sinceEntry < duration) {
-                    output(lerp(start, end, AdditionalHelpers.EvalCurveNormalized(curve, duration, sinceEntry)));
-                } else {
-                    output(lerp(start, end, AdditionalHelpers.EvalCurveNormalized(curve, duration, duration)));
-                    done = true;
-                }
-            });
-            return () => done;
-        }
-
-        public static void StateFromHapnTween(this IStateConstruction state, HapnTweenAdapter m_tween) {
-            state.BindAnimation(m_tween.duration, AdditionalHelpers.LerpVec2, () => (m_tween.startPos, m_tween.endPos), (val) => m_tween.toChange?.Invoke(val), m_tween.curve);
-        }
-
-        // Delivers a periodic float every frame in the range [-1,1] along with a periodCount. timeOffset starts the first later into the first period, and should be in the range [0f, periodSecs)
-        public static void BindPeriodic(this IStateConstruction state, float periodSecs, float timeOffset, Action<float, int> output) {
-            state.AddEveryFrameAction(() => {
-                float nowTime = (Time.time) - state.entryTime + timeOffset;
-                int cycles = Mathf.FloorToInt(nowTime / periodSecs);
-                output(Mathf.Sin(Mathf.PI * 2f * nowTime / periodSecs), cycles);
-            });
-        }
-
-        public static void BindCanvasGroupFadeInOut(this IEnterable state, CanvasGroup cg) {
-            state.BindBool(isOn => {
-                cg.blocksRaycasts = isOn;
-                cg.interactable = isOn;
-            });
-
-            state.BindEaseAnimation(
-                0.5f,
-                () => (cg.alpha, 1f),
-                (float v) => cg.alpha = v);
-            new InvertedStateConstruction(state).BindEaseAnimation(
-                0.5f,
-                () => (cg.alpha, 0f),
-                (float v) => {
-                    cg.alpha = v;
-                });
-        }
-    }
 }
