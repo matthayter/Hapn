@@ -41,22 +41,11 @@ namespace Hapn {
         public static void BindEaseAnimation(this IStateConstruction state, float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output) {
             var curve = AnimationCurve.EaseInOut(0f, 0f, duration, 1f);
             state.EntryAnimation(duration, Vector3.LerpUnclamped, initValues, output, curve);
+        }
 
-            //Vector3 start = default(Vector3);
-            //Vector3 end = default(Vector3);
-            //state.AddEntryAction(() => {
-            //    var values = initValues();
-            //    start = values.Item1;
-            //    end = values.Item2;
-            //});
-            //state.AddEveryFrameAction(() => {
-            //    float sinceEntry = Time.time - state.entryTime; 
-            //    if (sinceEntry < duration) {
-            //        output(Vector3.Lerp(start, end, curve.Evaluate(sinceEntry)));
-            //    } else {
-            //        output(end);
-            //    }
-            //});
+        public static void BindEaseAnimation(this IStateConstruction state, float duration, Func<(Quaternion, Quaternion)> initValues, Action<Quaternion> output) {
+            var curve = AnimationCurve.EaseInOut(0f, 0f, duration, 1f);
+            state.EntryAnimation(duration, Quaternion.LerpUnclamped, initValues, output, curve);
         }
 
         public static void BindEaseAnimation(this IEnterable state, float duration, Func<(float, float)> initValues, Action<float> output) {

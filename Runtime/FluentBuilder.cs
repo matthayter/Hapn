@@ -164,24 +164,37 @@ namespace Hapn
         }
 
         public FluentBuilder EntryAnimationAndTransitionOnDone(float duration, Func<(float, float)> initValues, Action<float> output, AnimationCurve curve = null, string dest = null) {
-            if (curve == null) curve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            if (curve == null) curve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
             var t = m_stateInContext.EntryAnimationAndTransitionOnDone(duration, Mathf.Lerp, initValues, output, curve);
             LinkTransition(dest, t);
             return this;
         }
         public FluentBuilder EntryAnimationAndTransitionOnDone(float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output, AnimationCurve curve = null, string dest = null) {
-            if (curve == null) curve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            if (curve == null) curve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
             var t = m_stateInContext.EntryAnimationAndTransitionOnDone(duration, Vector3.LerpUnclamped, initValues, output, curve);
             LinkTransition(dest, t);
             return this;
         }
-
-        public FluentBuilder EntryLinearAnimation(float duration, Func<(float, float)> initValues, Action<float> output) {
-            m_stateInContext.EntryAnimation(duration, Mathf.Lerp, initValues, output, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+        public FluentBuilder EntryAnimationAndTransitionOnDone(float duration, Func<(Quaternion, Quaternion)> initValues, Action<Quaternion> output, AnimationCurve curve = null, string dest = null) {
+            if (curve == null) curve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+            var t = m_stateInContext.EntryAnimationAndTransitionOnDone(duration, Quaternion.LerpUnclamped, initValues, output, curve);
+            LinkTransition(dest, t);
             return this;
         }
-        public FluentBuilder EntryLinearAnimation(float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output) {
-            m_stateInContext.EntryAnimation(duration, Vector3.LerpUnclamped, initValues, output, AnimationCurve.Linear(0f, 0f, 1f, 1f));
+
+        public FluentBuilder EntryAnimation(float duration, Func<(float, float)> initValues, Action<float> output, AnimationCurve curve = null) {
+            if (curve == null) curve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+            m_stateInContext.EntryAnimation(duration, Mathf.Lerp, initValues, output, curve);
+            return this;
+        }
+        public FluentBuilder EntryAnimation(float duration, Func<(Vector3, Vector3)> initValues, Action<Vector3> output, AnimationCurve curve = null) {
+            if (curve == null) curve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+            m_stateInContext.EntryAnimation(duration, Vector3.LerpUnclamped, initValues, output, curve);
+            return this;
+        }
+        public FluentBuilder EntryAnimation(float duration, Func<(Quaternion, Quaternion)> initValues, Action<Quaternion> output, AnimationCurve curve = null) {
+            if (curve == null) curve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+            m_stateInContext.EntryAnimation(duration, Quaternion.LerpUnclamped, initValues, output, curve);
             return this;
         }
 
@@ -369,6 +382,20 @@ namespace Hapn
         public FluentBuilder BindGameObjectInvertActiveState(GameObject go) {
             m_stateInContext.BindBool((isOn) => {
                 go.SetActive(!isOn);
+            });
+            return this;
+        }
+
+        public FluentBuilder BindComponentActiveState(Behaviour mb) {
+            m_stateInContext.BindBool((isOn) => {
+                mb.enabled = isOn;
+            });
+            return this;
+        }
+
+        public FluentBuilder BindComponentInvertActiveState(Behaviour mb) {
+            m_stateInContext.BindBool((isOn) => {
+                mb.enabled = !isOn;
             });
             return this;
         }
