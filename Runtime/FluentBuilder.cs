@@ -9,6 +9,7 @@ using UnityEngine.InputSystem;
 #endif
 
 using Hapn.UniRx;
+using UniRx;
 using Hapn;
 using Cysharp.Threading.Tasks;
 
@@ -268,7 +269,7 @@ namespace Hapn
 
 #if ENABLE_INPUT_SYSTEM
         public FluentBuilder TransitionOnButtonInput(InputAction input, string dest = null) {
-            var t = new MultiTransition(m_graph);
+            var t = new MultiTransition(m_graph, m_stateInContext.ToRuntimeState());
 
             Action<InputAction.CallbackContext> trigger = (inputContext) => t.TriggerManually();
 
@@ -321,6 +322,12 @@ namespace Hapn
         }
 
         public FluentBuilder TransitionWhen(Func<bool> test, string dest = null) {
+            var t = m_stateInContext.MakeDanglingTransition(test);
+            LinkTransition(dest, t);
+            return this;
+        }
+
+        public FluentBuilder TransitionWhen(IObservable<bool> test, string dest = null) {
             var t = m_stateInContext.MakeDanglingTransition(test);
             LinkTransition(dest, t);
             return this;
@@ -496,6 +503,11 @@ namespace Hapn
             return this;
         }
 
+        public FluentBuilderStateGroup OnExit(Action a) {
+            m_stateGroup.AddExitAction(a);
+            return this;
+        }
+
         public FluentBuilderStateGroup BindBool(Action<bool> action) {
             m_stateGroup.BindBool(action);
             return this;
@@ -520,6 +532,11 @@ namespace Hapn
 
         public FluentBuilder CloseStateGroup() {
             return m_parent;
+        }
+
+        // Start a new stategroup.
+        public FluentBuilderStateGroup StateGroup(string name, params string[] states) {
+            return m_parent.StateGroup(name, states);
         }
     }
 }

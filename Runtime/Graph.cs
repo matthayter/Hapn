@@ -11,6 +11,8 @@ namespace Hapn {
         private static int anonCounter = 0;
 
         public IState m_currentState = null;
+        private bool m_isTransitioning = false;
+        private IState m_nextStateToTransitionTo = null;
         private bool m_hasStartedInitState = false;
         private HashSet<IState> m_stateSet = new HashSet<IState>();
         private HashSet<StateGroup> m_allGroups = new HashSet<StateGroup>();
@@ -66,6 +68,7 @@ namespace Hapn {
                 m_currentState.entryTime = Time.time;
                 m_currentState.RunEntryActions();
                 foreach (ITransition t in m_currentState.transitions) {
+                    // This may call TriggerManualTransition() - caution needed.
                     t.Enable();
                 }
             }
@@ -74,7 +77,8 @@ namespace Hapn {
                 m_keepCheckingTransitions = false;
                 foreach (ITransition t in m_currentState.transitions) {
                     if (t.CheckAndPassData()) {
-                        DoTransitionWork(t.GetDestination());
+                        m_nextStateToTransitionTo = t.GetDestination();
+                        DoTransitionLoopWhileExternallyStimulatedTransitionsContinueToOccur();
                         m_keepCheckingTransitions = true;
                         break;
                     }
@@ -95,10 +99,34 @@ namespace Hapn {
             
         }
 
-        // Transition should already have inserted any tokens into the
-        // destination state before calling this.
-        public void TriggerManualTransition(IState destination) {
-            DoTransitionWork(destination);
+        // Transition should already have inserted any tokens into the destination state before calling this.
+        // This is the only entry point that can cause transitions triggered by some outside stimulus. All of the careful state-management goes here.
+        public void TriggerManualTransition(IState source, IState destination) {
+            if (m_currentState != source) {
+                if (m_logDebug) Debug.LogFormat("Graph [{0}]: Manual transition was triggered from {1}, but current state is {2}. Ignoring.", m_name, source.Name, m_currentState.Name);
+                return;
+            }
+            // This transition was triggered as part of some transition work. May be valid...
+            if (m_nextStateToTransitionTo == null) {
+                // ...like a transition triggered from state A as part of state A's OnEnable actions; or invalid...
+                m_nextStateToTransitionTo = destination;
+            } else {
+                // ...like if from state B but triggered as part of state B's exit actions.
+                if (m_logDebug) Debug.LogFormat("Graph [{0}]: Manual transition was triggered from {1}, which is the current state, but we are already in the process of transitioning to {2}.", m_name, source.Name, m_nextStateToTransitionTo.Name);
+
+            }
+            if (m_isTransitioning) {
+                return;
+            }
+            DoTransitionLoopWhileExternallyStimulatedTransitionsContinueToOccur();
+        }
+
+        private void DoTransitionLoopWhileExternallyStimulatedTransitionsContinueToOccur() {
+            m_isTransitioning = true;
+            while (m_nextStateToTransitionTo != null) {
+                DoTransitionWork();
+            }
+            m_isTransitioning = false;
         }
 
         /* For now, Ordering of events looks like this, when exiting state A and entering state B:
@@ -113,9 +141,10 @@ namespace Hapn {
          * IN STATE B
         */
         // Tries to avoid allocation at the possible expense of time by testing Set membership multiple times instead of creating new sets with SetA.except(SetB) etc
-        private void DoTransitionWork(IState destination) {
+        private void DoTransitionWork() {
+            var destination = m_nextStateToTransitionTo;
+
             if (destination == null) throw new Exception("Hapn: transition occured with null destination!");
-            if (m_logDebug) Debug.LogFormat("Graph [{0}]: {1} -> {2}", m_name, m_currentState.Name, destination.Name);
             var outgoingState = m_currentState;
             foreach (ITransition u in m_currentState.transitions) {
                 u.Disable();
@@ -140,7 +169,9 @@ namespace Hapn {
             }
 
             //////
-            m_currentState = destination;
+            if (m_logDebug) Debug.LogFormat("Graph [{0}]: {1} -> {2}", m_name, m_currentState.Name, destination.Name);
+            m_currentState = m_nextStateToTransitionTo;
+            m_nextStateToTransitionTo = null;
             m_currentState.entryTime = Time.time;
             if (m_currentState.transitions.Count == 0) {
                 Debug.LogWarningFormat("Current state '{0}' has no transitions. This state will never exit.", m_currentState.Name);
@@ -182,9 +213,9 @@ namespace Hapn {
 
             m_currentState.RunEntryActions();
             foreach (ITransition u in m_currentState.transitions) {
+                // This may call TriggerManualTransition() - caution needed.
                 u.Enable();
             }
-
         }
     }
 }

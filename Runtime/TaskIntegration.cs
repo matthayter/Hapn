@@ -33,7 +33,7 @@ namespace Hapn.UniRx {
                 }
             });
 
-            var t = new MultiTransition(state.Graph);
+            var t = new MultiTransition(state.Graph, state.ToRuntimeState());
             state.AddTransition(t);
 
             t.When(() => transitionShouldTrigger);
@@ -73,16 +73,14 @@ namespace Hapn.UniRx {
                 }
             });
 
-            var tFail = new MultiTransition<Exception>(state.Graph);
+            var tFail = new MultiTransition<Exception>(state.Graph, state.ToRuntimeState());
             state.AddTransition(tFail);
 
-            var tSuccess = new MultiTransition(state.Graph);
+            var tSuccess = new MultiTransition(state.Graph, state.ToRuntimeState());
             state.AddTransition(tSuccess);
 
             tSuccess.When(() => successTransitionShouldTrigger);
-            tFail.When(() => {
-                return e;
-            });
+            tFail.When(() => e);
             return (tSuccess, tFail);
         }
 

@@ -10,17 +10,20 @@ namespace Hapn {
     // TODO: this should be a data class - no need for private members.
     public class MultiTransition : ITransition, ITransitionBuilder {
         public Graph m_graph;
+        public IState m_src;
         public IState m_dest;
         public List<Func<bool>> m_check = new List<Func<bool>>();
         // Actions that "enable/disable the transition occurring" - e.g. subscribing to a button's onClick event
         public Action m_enable = null;
         public Action m_disable = null;
 
-        public MultiTransition(Graph graph) {
+        public MultiTransition(Graph graph, IState state) {
             m_graph = graph;
+            m_src = state;
         }
 
         #region Builder methods to be moved out
+        // predicate must not trigger any manual transitions.
         public void When(Func<bool> predicate) {
             m_check.Add(predicate);
         }
@@ -67,7 +70,7 @@ namespace Hapn {
         }
 
         public void TriggerManually() {
-            m_graph.TriggerManualTransition(m_dest);
+            m_graph.TriggerManualTransition(m_src, m_dest);
         }
 
         public void Disable() {
@@ -87,6 +90,7 @@ namespace Hapn {
     public class MultiTransition<S> : ITransition, ITransitionBuilder<S> {
         private Graph m_graph;
         private EntranceTypes m_noTokenDest;
+        private IState m_src;
         private EntranceTypes<S> m_dest;
         private List<Func<(bool, S)>> m_check = new List<Func<(bool, S)>>();
         // These return a non-null token on transition, null when do-not-transition.
@@ -95,12 +99,14 @@ namespace Hapn {
         private Action m_enable = null;
         private Action m_disable = null;
 
-        public MultiTransition(Graph graph) {
+        public MultiTransition(Graph graph, IState state) {
             m_graph = graph;
+            m_src = state;
         }
 
 
         #region Builder methods
+        // predicate must not trigger any manual transitions.
         public void When(Func<(bool, S)> predicate) {
             m_check.Add(predicate);
         }
@@ -178,7 +184,7 @@ namespace Hapn {
             // TODO: Consider making this safer.
             // Warning: this currently does not verify whether the graph is indeed in the src state. Only call this if you're sure that is the case.
             m_dest.Enter(token);
-            m_graph.TriggerManualTransition(m_dest);
+            m_graph.TriggerManualTransition(m_src, m_dest);
         }
 
         public void Disable() {

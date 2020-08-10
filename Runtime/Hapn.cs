@@ -410,7 +410,7 @@ namespace Hapn
         }
 
         public static ITransitionBuilder EntryAnimationAndTransitionOnDone<T>(this IStateConstruction s, float duration, Func<T, T, float, T> lerp, Func<(T, T)> initValues, Action<T> output, AnimationCurve curve) {
-            var t = new MultiTransition(s.Graph);
+            var t = new MultiTransition(s.Graph, s.ToRuntimeState());
             var isAnimationDone = s.EntryAnimation(duration, lerp, initValues, output, curve);
             t.When(isAnimationDone);
             s.AddTransition(t);

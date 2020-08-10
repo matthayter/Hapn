@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 
+using UniRx;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Events;
@@ -192,7 +193,7 @@ namespace Hapn {
         }
 
         public static (ITransitionBuilder transition, Action trigger) MakeManualDanglingTransition(this IStateConstruction src) {
-            var t = new MultiTransition(src.Graph);
+            var t = new MultiTransition(src.Graph, src.ToRuntimeState());
             bool isEnabled = false;
 
             t.ToEnable(() => isEnabled = true);
@@ -204,7 +205,7 @@ namespace Hapn {
         }
 
         public static (ITransitionBuilder<T> transition, Action<T> trigger) MakeManualDanglingTransition<T>(this IStateConstruction src) {
-            var t = new MultiTransition<T>(src.Graph);
+            var t = new MultiTransition<T>(src.Graph, src.ToRuntimeState());
             bool isEnabled = false;
 
             t.ToEnable(() => isEnabled = true);
@@ -216,7 +217,7 @@ namespace Hapn {
         }
 
         public static void MakeTransition(this IStateConstruction src, NoTokenStateConstruction dest, Button button) {
-            var t = new MultiTransition(src.Graph);
+            var t = new MultiTransition(src.Graph, src.ToRuntimeState());
             t.To(dest);
 
             // Local function
@@ -229,7 +230,7 @@ namespace Hapn {
 
         // May want to add generic version for token states.
         public static ITransitionBuilder MakeDanglingTransition(this IStateConstruction src, Button button) {
-            var t = new MultiTransition(src.Graph);
+            var t = new MultiTransition(src.Graph, src.ToRuntimeState());
 
             // Local function
             void trigger() => t.TriggerManually();
@@ -242,7 +243,7 @@ namespace Hapn {
 
         // May want to add generic version for token states.
         public static ITransitionBuilder MakeDanglingTransition(this IStateConstruction src, Func<bool> when) {
-            var t = new MultiTransition(src.Graph);
+            var t = new MultiTransition(src.Graph, src.ToRuntimeState());
             t.When(when);
 
             src.AddTransition(t);
@@ -250,7 +251,7 @@ namespace Hapn {
         }
 
         public static ITransitionBuilder MakeDanglingTransition(this IStateConstruction src, UnityEvent when) {
-            var t = new MultiTransition(src.Graph);
+            var t = new MultiTransition(src.Graph, src.ToRuntimeState());
             t.ToEnable(() => when.AddListener(t.TriggerManually));
             t.ToDisable(() => when.RemoveListener(t.TriggerManually));
 
@@ -258,10 +259,22 @@ namespace Hapn {
             return t;
         }
 
+        public static ITransitionBuilder MakeDanglingTransition(this IStateConstruction src, IObservable<bool> when) {
+            var t = new MultiTransition(src.Graph, src.ToRuntimeState());
+            IDisposable subscription = null;
+            t.ToEnable(() => subscription = when.Subscribe(shouldTransition => {
+                // May be called before ToEnable returns. Graph must handle this smoothly.
+                if (shouldTransition) t.TriggerManually();
+            }));
+            t.ToDisable(() => subscription.Dispose());
+
+            src.AddTransition(t);
+            return t;
+        }
 
         public static (ITransitionBuilder onFalse, ITransitionBuilder onTrue) MakeBranchedTransitions(this IStateConstruction src, Button button, Func<bool> test) {
-            var trueTransition = new MultiTransition(src.Graph);
-            var falseTransition = new MultiTransition(src.Graph);
+            var trueTransition = new MultiTransition(src.Graph, src.ToRuntimeState());
+            var falseTransition = new MultiTransition(src.Graph, src.ToRuntimeState());
 
             // Local function
             void trigger() {
@@ -282,7 +295,7 @@ namespace Hapn {
         }
 
         public static void MakeTransition(this IStateConstruction src, NoTokenStateConstruction dest, Func<bool> when) {
-            var t = new MultiTransition(src.Graph);
+            var t = new MultiTransition(src.Graph, src.ToRuntimeState());
             t.To(dest);
             t.When(when);
 
@@ -290,7 +303,7 @@ namespace Hapn {
         }
 
         public static void MakeTransition<T>(this IStateConstruction src, WithTokenStateConstruction<T> dest, Func<T> when) {
-            var t = new MultiTransition<T>(src.Graph);
+            var t = new MultiTransition<T>(src.Graph, src.ToRuntimeState());
             t.To(dest);
             t.When(when);
 
@@ -298,7 +311,7 @@ namespace Hapn {
         }
 
         public static void TransitionAfterTime(this IStateConstruction src, NoTokenStateConstruction dest, float seconds) {
-            var t = new MultiTransition(src.Graph);
+            var t = new MultiTransition(src.Graph, src.ToRuntimeState());
             t.To(dest);
             t.When(() => {
                 return Time.time - src.entryTime >= seconds;
