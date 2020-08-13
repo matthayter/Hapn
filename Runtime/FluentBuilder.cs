@@ -327,8 +327,8 @@ namespace Hapn
             return this;
         }
 
-        public FluentBuilder TransitionWhen(IObservable<bool> test, string dest = null) {
-            var t = m_stateInContext.MakeDanglingTransition(test);
+        public FluentBuilder TransitionWhen(IObservable<bool> test, string dest = null, GameObject unsubscribeOnDestroyTarget = null) {
+            var t = m_stateInContext.MakeDanglingTransition(test, unsubscribeOnDestroyTarget);
             LinkTransition(dest, t);
             return this;
         }

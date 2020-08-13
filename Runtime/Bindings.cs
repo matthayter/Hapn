@@ -259,13 +259,18 @@ namespace Hapn {
             return t;
         }
 
-        public static ITransitionBuilder MakeDanglingTransition(this IStateConstruction src, IObservable<bool> when) {
+        public static ITransitionBuilder MakeDanglingTransition(this IStateConstruction src, IObservable<bool> when, GameObject unsubscribeOnDestroyTarget = null) {
             var t = new MultiTransition(src.Graph, src.ToRuntimeState());
             IDisposable subscription = null;
-            t.ToEnable(() => subscription = when.Subscribe(shouldTransition => {
-                // May be called before ToEnable returns. Graph must handle this smoothly.
-                if (shouldTransition) t.TriggerManually();
-            }));
+            t.ToEnable(() => {
+                subscription = when.Subscribe(shouldTransition => {
+                    // May be called before ToEnable returns. Graph must handle this smoothly.
+                    if (shouldTransition) t.TriggerManually();
+                });
+                if (unsubscribeOnDestroyTarget != null) {
+                    subscription.AddTo(unsubscribeOnDestroyTarget);
+                }
+            });
             t.ToDisable(() => subscription.Dispose());
 
             src.AddTransition(t);
