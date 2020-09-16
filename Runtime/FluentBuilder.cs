@@ -508,6 +508,16 @@ namespace Hapn
             return this;
         }
 
+        public FluentBuilderStateGroup OnUpdate(Action a) {
+            m_stateGroup.AddEveryFrameAction(a);
+            return this;
+        }
+
+        public FluentBuilderStateGroup OnNegativeUpdate(Action a) {
+            m_stateGroup.AddNegativeEveryFrameAction(a);
+            return this;
+        }
+
         public FluentBuilderStateGroup BindBool(Action<bool> action) {
             m_stateGroup.BindBool(action);
             return this;
