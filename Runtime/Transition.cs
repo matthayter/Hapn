@@ -7,7 +7,6 @@ using UnityEngine.Events;
 
 namespace Hapn {
     // Reminder: this is a data class, and should have no behaviour except for trivial actions needed to statisfy the type system.
-    // TODO: this should be a data class - no need for private members.
     public class MultiTransition : ITransition, ITransitionBuilder {
         public Graph m_graph;
         public IState m_src;
@@ -86,18 +85,18 @@ namespace Hapn {
         }
     }
 
-    // TODO: this should be a data class - no need for private members.
+    // Reminder: this is a data class, and should have no behaviour except for trivial actions needed to statisfy the type system.
     public class MultiTransition<S> : ITransition, ITransitionBuilder<S> {
-        private Graph m_graph;
-        private EntranceTypes m_noTokenDest;
-        private IState m_src;
-        private EntranceTypes<S> m_dest;
-        private List<Func<(bool, S)>> m_check = new List<Func<(bool, S)>>();
+        public Graph m_graph;
+        public EntranceTypes m_noTokenDest;
+        public IState m_src;
+        public EntranceTypes<S> m_dest;
+        public List<Func<(bool, S)>> m_check = new List<Func<(bool, S)>>();
         // These return a non-null token on transition, null when do-not-transition.
-        private List<Func<S>> m_notNullTokenChecks = new List<Func<S>>();
+        public List<Func<S>> m_notNullTokenChecks = new List<Func<S>>();
         // Actions that "enable/disable the transition occurring" - e.g. subscribing to a button's onClick event
-        private Action m_enable = null;
-        private Action m_disable = null;
+        public Action m_enable = null;
+        public Action m_disable = null;
 
         public MultiTransition(Graph graph, IState state) {
             m_graph = graph;
@@ -181,8 +180,6 @@ namespace Hapn {
         }
 
         public void TriggerManually(S token) {
-            // TODO: Consider making this safer.
-            // Warning: this currently does not verify whether the graph is indeed in the src state. Only call this if you're sure that is the case.
             m_dest.Enter(token);
             m_graph.TriggerManualTransition(m_src, m_dest);
         }

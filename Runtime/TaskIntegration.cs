@@ -40,6 +40,32 @@ namespace Hapn.UniRx {
             return t;
         }
 
+        // Note on transition timing: The outgoing transition will trigger on the update() after the task completes. It may
+        // be desired that the transition is triggered 'manually' as soon as the task completes.
+        public static ITransitionBuilder BindAsyncLamdaAndTransitionOnDone<T>(this WithTokenStateConstruction<T> state, Func<T, UniTask> task) {
+            // If the state is entered then exited then entered again before the first UniTask completes,
+            // we need a way to have the first task not cause a transition. Use a simple counter.
+            uint execCounter = 0;
+            bool transitionShouldTrigger = false;
+            state.AddEntryAction(async () => {
+                transitionShouldTrigger = false;
+                execCounter++;
+                uint thisTasksCounter = execCounter;
+
+                await task(state.ToEntranceType().token);
+
+                if (thisTasksCounter == execCounter) {
+                    transitionShouldTrigger = true;
+                }
+            });
+
+            var t = new MultiTransition(state.Graph, state.ToRuntimeState());
+            state.AddTransition(t);
+
+            t.When(() => transitionShouldTrigger);
+            return t;
+        }
+
         public static (ITransitionBuilder success, ITransitionBuilder<Exception> fail) BindAsyncLamdaAndTransitionByResult(this IStateConstruction state, Func<UniTask> task) {
             return state.BindAsyncLamdaAndTransitionByResult(() => task().ContinueWith(() => true));
         }

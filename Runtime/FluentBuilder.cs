@@ -36,6 +36,7 @@ namespace Hapn
         // Dependency injection
 #if ENABLE_INPUT_SYSTEM
         //public FluentBuilder UseInputAsset(params string[] stateGroupNames) {
+        //}
 #endif
 
         // Declare a new StateGroup, independent of the state in context.
@@ -91,7 +92,7 @@ namespace Hapn
             return this;
         }
 
-        public FluentBuilder State<T>(string name) {
+        public FluentBuilder<T> State<T>(string name) {
             WithTokenStateConstruction<T> newState = m_graph.NewState<T>(name);
             m_stateInContext = newState;
             if (m_states.ContainsKey(name)) {
@@ -118,18 +119,16 @@ namespace Hapn
             }
             m_transitionsToNextState.Clear();
 
-            return this;
+            return new FluentBuilder<T>(this, newState);
         }
 
         private void LinkWaitingThingsToNewState(string name, IStateConstruction state) {
             if (m_waitingStateGroups.ContainsKey(name)) {
                 foreach (var sg in m_waitingStateGroups[name]) {
-                    // Transitions with- and without-tokens can transition to no-token states.
                     state.AddGroup(sg);
                 }
                 m_waitingTransitions.Remove(name);
             }
-
         }
 
         private void AssignTransitionsAndClear(NoTokenStateConstruction newState) {
@@ -240,6 +239,19 @@ namespace Hapn
             return this;
         }
 
+        public FluentBuilder TransitionByTrigger<T>(out Action<T> trigger, string dest = null) {
+            if (m_stateInContext == null) {
+                throw new InvalidOperationException("Create a state before making a transition.");
+            }
+
+            ITransitionBuilder<T> transition;
+            (transition, trigger) = m_stateInContext.MakeManualDanglingTransition<T>();
+
+            LinkTransition(dest, transition);
+
+            return this;
+        }
+
         public FluentBuilder TransitionByTrigger(Action<Action> assignTrigger, string dest = null) {
             if (m_stateInContext == null) {
                 throw new InvalidOperationException("Create a state before making a transition.");
@@ -247,11 +259,7 @@ namespace Hapn
             var (transition, trigger) = m_stateInContext.MakeManualDanglingTransition();
             assignTrigger(trigger);
 
-            if (dest != null) {
-                TryToLinkTransition(transition, dest);
-            } else {
-                m_transitionsToNextState.Add(transition);
-            }
+            LinkTransition(dest, transition);
 
             return this;
         }
@@ -446,7 +454,15 @@ namespace Hapn
             return this;
         }
 
-        private void LinkTransition(string dest, ITransitionBuilder t) {
+        internal void LinkTransition(string dest, ITransitionBuilder t) {
+            if (dest != null) {
+                TryToLinkTransition(t, dest);
+            } else {
+                m_transitionsToNextState.Add(t);
+            }
+        }
+
+        internal void LinkTransition<T>(string dest, ITransitionBuilder<T> t) {
             if (dest != null) {
                 TryToLinkTransition(t, dest);
             } else {
@@ -486,6 +502,32 @@ namespace Hapn
                     m_waitingTransitions[dest] = new List<IBaseTransitionBuilder>() { t };
                 }
             }
+        }
+    }
+
+    public class FluentBuilder<T> {
+        private FluentBuilder m_fluentBuilder;
+        private WithTokenStateConstruction<T> m_stateInContext;
+
+        public FluentBuilder(FluentBuilder fluentBuilder, WithTokenStateConstruction<T> stateInContext) {
+            m_fluentBuilder = fluentBuilder;
+            m_stateInContext = stateInContext;
+        }
+
+
+        // Transition to no-token state
+        public FluentBuilder<T> TransitionAfter(Func<T, UniTask> f, string dest = null) {
+            var t = m_stateInContext.BindAsyncLamdaAndTransitionOnDone(f);
+            m_fluentBuilder.LinkTransition(dest, t);
+            return this;
+        }
+
+        public FluentBuilder State(string name) {
+            return m_fluentBuilder.State(name);
+        }
+
+        public FluentBuilder<T> State<T>(string name) {
+            return m_fluentBuilder.State<T>(name);
         }
     }
 
