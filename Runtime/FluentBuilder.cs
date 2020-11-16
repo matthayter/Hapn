@@ -526,8 +526,8 @@ namespace Hapn
             return m_fluentBuilder.State(name);
         }
 
-        public FluentBuilder<T> State<T>(string name) {
-            return m_fluentBuilder.State<T>(name);
+        public FluentBuilder<S> State<S>(string name) {
+            return m_fluentBuilder.State<S>(name);
         }
     }
 
@@ -552,6 +552,16 @@ namespace Hapn
 
         public FluentBuilderStateGroup OnUpdate(Action a) {
             m_stateGroup.AddEveryFrameAction(a);
+            return this;
+        }
+
+        public FluentBuilderStateGroup OnNegativeEntry(Action a) {
+            m_stateGroup.AddNegativeEntryAction(a);
+            return this;
+        }
+
+        public FluentBuilderStateGroup OnNegativeExit(Action a) {
+            m_stateGroup.AddNegativeExitAction(a);
             return this;
         }
 
