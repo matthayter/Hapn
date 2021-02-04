@@ -7,8 +7,12 @@ using UnityEngine.UI;
 using UnityEngine.Events;
 
 namespace Hapn {
-    public static class ComposedStateExtensions {
+    public enum ReferenceTime { Scaled, Unscaled }
+    public struct AnimationOptions {
+        public ReferenceTime? ReferenceTime;
+    }
 
+    public static class ComposedStateExtensions {
         public static void BindBool(this IEnterable state, Action<bool> action)
         {
             state.AddEntryAction(() => action(true));
@@ -74,7 +78,7 @@ namespace Hapn {
             state.BindAnimationBothWays(() => tween.duration, AdditionalHelpers.LerpRect, tween.endOrInactiveAnchors, tween.startOrActiveAnchors, (val) => tween.SetAnchors(val), tween.curve);
         }
 
-        public static void BindAnimationBothWays<T>(this IEnterable state, Func<float> getDuration, Func<T, T, float, T> lerp, T outState, T inState, Action<T> output, AnimationCurve curve) {
+        public static void BindAnimationBothWays<T>(this IEnterable state, Func<float> getDuration, Func<T, T, float, T> lerp, T outState, T inState, Action<T> output, AnimationCurve curve, ReferenceTime timeReference = ReferenceTime.Scaled) {
             float timeIntoActivePosition = 0f;
             bool started = false;
             float duration = 0f;
@@ -102,7 +106,7 @@ namespace Hapn {
             state.AddEveryFrameAction(() => {
                 if (timeIntoActivePosition == duration) return;
 
-                timeIntoActivePosition += Time.deltaTime;
+                timeIntoActivePosition += timeReference == ReferenceTime.Scaled ? Time.deltaTime : Time.unscaledDeltaTime;
 
                 if (timeIntoActivePosition < duration) {
                     output(lerp(outState, inState, AdditionalHelpers.EvalCurveNormalized(curve, duration, timeIntoActivePosition)));
@@ -114,7 +118,7 @@ namespace Hapn {
             state.AddNegativeEveryFrameAction(() => {
                 if (timeIntoActivePosition == 0f) return;
 
-                timeIntoActivePosition -= Time.deltaTime;
+                timeIntoActivePosition -= timeReference == ReferenceTime.Scaled ? Time.deltaTime : Time.unscaledDeltaTime;
 
                 if (timeIntoActivePosition > 0f) {
                     output(lerp(outState, inState, AdditionalHelpers.EvalCurveNormalized(curve, duration, timeIntoActivePosition)));
@@ -160,7 +164,7 @@ namespace Hapn {
             });
         }
 
-        public static void BindCanvasGroupFadeInOut(this IEnterable state, CanvasGroup cg) {
+        public static void BindCanvasGroupFadeInOut(this IEnterable state, CanvasGroup cg, AnimationOptions options = new AnimationOptions()) {
             // Immediately prevent interaction
             state.BindBool(isOn => {
                 cg.blocksRaycasts = isOn;
@@ -170,7 +174,8 @@ namespace Hapn {
             state.BindAnimationBothWays(() => 0.4f, Mathf.Lerp, 0f, 1f, v => {
                 cg.gameObject.SetActive(v > 0f);
                 cg.alpha = v;
-            }, AnimationCurve.EaseInOut(0f, 0f, 1f, 1f));
+            }, AnimationCurve.EaseInOut(0f, 0f, 1f, 1f)
+            , options.ReferenceTime.GetValueOrDefault(ReferenceTime.Scaled));
         }
     }
 

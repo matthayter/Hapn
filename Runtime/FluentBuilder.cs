@@ -389,8 +389,8 @@ namespace Hapn
             return this;
         }
 
-        public FluentBuilder BindCanvasFadeInOut(CanvasGroup cg) {
-            m_stateInContext.BindCanvasGroupFadeInOut(cg);
+        public FluentBuilder BindCanvasFadeInOut(CanvasGroup cg, AnimationOptions options = new AnimationOptions()) {
+            m_stateInContext.BindCanvasGroupFadeInOut(cg, options);
             return this;
         }
 
