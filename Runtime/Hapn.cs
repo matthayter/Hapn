@@ -9,14 +9,6 @@ using UnityEngine.Events;
 
 namespace Hapn
 {
-    // To declare a state may be entered without any tokens/data
-    public interface EntranceTypes : IState { }
-
-    public interface EntranceTypes<T> : IState {
-        T token { get; }
-        void Enter(T var1);
-    }
-
     // Inherit from this for custom state classes.
     public abstract class BaseState<T> : EntranceTypes<T>, WithTokenStateConstruction<T> {
         public List<ITransition> transitions { get; } = new List<ITransition>();
@@ -227,7 +219,15 @@ namespace Hapn
         }
     }
 
-    // This is for use by the Graph at runtime
+    // To declare a state may be entered without any tokens/data
+    public interface EntranceTypes : IState { }
+
+    public interface EntranceTypes<T> : IState {
+        T token { get; }
+        void Enter(T var1);
+    }
+
+    // This is for use by the Graph at runtime. Doesn't reference any tokens...
     public interface IState {
         List<ITransition> transitions { get; }
         // Perhaps these should also be functions, e.g. void RunGroupEntryActions().
@@ -260,13 +260,18 @@ namespace Hapn
         // Exit actions occur after outgoing transitions have been disabled. EveryFrameActions are guarenteed not to occur afterwards, until state is entered again.
         void AddNegativeExitAction(Action action);
         void AddNegativeEveryFrameAction(Action action);
+
         float entryTime { get; }
         float exitTime { get; }
     }
 
-    // Used by all the building mechanisms. Abstracts over states that can be built on/around
+    // Used by all the building mechanisms. Here are things you can build on states, but not StateGroups.
     public interface IStateConstruction : IEnterable {
+        // Can add transitions _from_ StateGroups (which is like a transition from every state in that group),
+        // but not _to_ StateGroups (what would that mean?)
+        // This should go in IEnterable, as long as transitioning from a negative-state is something we want to support.
         void AddTransition(ITransition t);
+
         void AddGroup(StateGroup sg);
         Graph Graph { get; }
 
@@ -280,6 +285,7 @@ namespace Hapn
         EntranceTypes<T> ToEntranceType();
     }
 
+    // TODO: Can we transition from a negative...?
     public class InvertedStateConstruction : IEnterable {
         private IEnterable m_baseState;
         public InvertedStateConstruction(IEnterable baseState) {

@@ -16,12 +16,15 @@ namespace Hapn {
         public Action m_enable = null;
         public Action m_disable = null;
 
-        public MultiTransition(Graph graph, IState state) {
+        public MultiTransition(Graph graph, IState sourceState) {
             m_graph = graph;
-            m_src = state;
+            m_src = sourceState;
         }
 
         #region Builder methods to be moved out
+        // The Transition is acting as it's own builder, might want to separate them. But is separation necessary when
+        // doing data-oriented...?
+
         // predicate must not trigger any manual transitions.
         public void When(Func<bool> predicate) {
             m_check.Add(predicate);
@@ -195,6 +198,45 @@ namespace Hapn {
         public IState GetDestination() {
             if (m_dest != null) return m_dest;
             return m_noTokenDest;
+        }
+    }
+
+    public class StateGroupTransition : ITransition {
+        public Graph m_graph;
+        public StateGroup m_src;
+        public IState m_dest;
+        public List<Func<bool>> m_check = new List<Func<bool>>();
+        // Actions that "enable/disable the transition occurring" - e.g. subscribing to a button's onClick event
+        public List<Action> m_enable = new List<Action>();
+        public List<Action> m_disable = new List<Action>();
+
+        public bool CheckAndPassData() {
+            foreach (var predicate in m_check) {
+                if (predicate()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void TriggerManually() {
+            m_graph.TriggerManualTransition(this);
+        }
+
+        public void Disable() {
+            foreach (var action in m_disable) {
+                action.Invoke();
+            }
+        }
+
+        public void Enable() {
+            foreach (var action in m_enable) {
+                action.Invoke();
+            }
+        }
+
+        public IState GetDestination() {
+            return m_dest;
         }
     }
 

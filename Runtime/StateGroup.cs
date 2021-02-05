@@ -9,10 +9,13 @@ namespace Hapn {
         public List<Action> entryActions { get; } = new List<Action>();
         public List<Action> everyFrame { get; } = new List<Action>();
         public List<Action> exitActions { get; } = new List<Action>();
-        // negative actions?
+
         public List<Action> negativeEntryActions { get; } = new List<Action>();
         public List<Action> negativeEveryFrameActions { get; } = new List<Action>();
         public List<Action> negativeExitActions { get; } = new List<Action>();
+
+        public List<ITransition> transitions { get; } = new List<ITransition>();
+
 
 
         public float entryTime { get; set; } = 0f;
@@ -21,6 +24,10 @@ namespace Hapn {
 
         public StateGroup(string name) {
             this.name = name;
+        }
+
+        public void AddTransition(ITransition t) {
+            transitions.Add(t);
         }
 
         public void AddEntryAction(Action action) {

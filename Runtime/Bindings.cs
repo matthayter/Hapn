@@ -199,6 +199,8 @@ namespace Hapn {
 
         public static (ITransitionBuilder transition, Action trigger) MakeManualDanglingTransition(this IStateConstruction src) {
             var t = new MultiTransition(src.Graph, src.ToRuntimeState());
+            // The graph now verifies that the source state is indeed active before acting on the transition, so
+            // it may not be necessary to track 'isEnabled' anymore.
             bool isEnabled = false;
 
             t.ToEnable(() => isEnabled = true);
