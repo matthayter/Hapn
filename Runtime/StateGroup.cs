@@ -4,6 +4,7 @@ using System.Collections.Generic;
 namespace Hapn {
     public class StateGroup : IEnterable {
         public string name;
+        public Graph graph;
         // Shared with State:
         // entry, exit, everyFrame actions
         public List<Action> entryActions { get; } = new List<Action>();
@@ -17,13 +18,13 @@ namespace Hapn {
         public List<ITransition> transitions { get; } = new List<ITransition>();
 
 
-
         public float entryTime { get; set; } = 0f;
         public float exitTime { get; set; } = 0f;
         // NOT transitions... yet
 
-        public StateGroup(string name) {
+        public StateGroup(string name, Graph graph) {
             this.name = name;
+            this.graph = graph;
         }
 
         public void AddTransition(ITransition t) {
@@ -84,5 +85,20 @@ namespace Hapn {
                 a();
             }
         }
+    }
+
+    public static class StateGroupExtensions {
+        public static void TransitionWhen(this StateGroup stateGroup, Func<bool> test) {
+
+        }
+
+        public static StateGroupTransition MakeDanglingTransition(this StateGroup src, Func<bool> when) {
+            var t = new StateGroupTransition(src.graph, src);
+            t.When(when);
+
+            src.AddTransition(t);
+            return t;
+        }
+
     }
 }

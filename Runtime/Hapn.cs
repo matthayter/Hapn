@@ -390,7 +390,7 @@ namespace Hapn
         }
 
         public static StateGroup NewStateGroup(this Graph graph, string name) {
-            var sg = new StateGroup(name);
+            var sg = new StateGroup(name, graph);
             graph.AddGroup(sg);
             return sg;
         }

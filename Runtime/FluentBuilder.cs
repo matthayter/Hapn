@@ -215,6 +215,7 @@ namespace Hapn
             return this;
         }
 
+        // Allows you to interact with the state directly. Helpful for e.g. sharing some context between an entry and exit action.
         public FluentBuilder GetState(Action<IStateConstruction> handler) {
             handler(m_stateInContext);
             return this;
@@ -529,6 +530,17 @@ namespace Hapn
         public FluentBuilder<S> State<S>(string name) {
             return m_fluentBuilder.State<S>(name);
         }
+
+        public FluentBuilder<T> OnUpdate(Action action) {
+            m_stateInContext.AddEveryFrameAction(action);
+            return this;
+        }
+
+        public FluentBuilder<T> OnUpdate(Action<T> action) {
+            var currentState = m_stateInContext;
+            m_stateInContext.AddEveryFrameAction(() => action(currentState.ToEntranceType().token));
+            return this;
+        }
     }
 
     public class FluentBuilderStateGroup {
@@ -599,6 +611,12 @@ namespace Hapn
         // Start a new stategroup.
         public FluentBuilderStateGroup StateGroup(string name, params string[] states) {
             return m_parent.StateGroup(name, states);
+        }
+
+        public FluentBuilderStateGroup TransitionWhen(Func<bool> test, string dest) {
+            var t = m_stateGroup.MakeDanglingTransition(test);
+            m_parent.LinkTransition(dest, t);
+            return this;
         }
     }
 }

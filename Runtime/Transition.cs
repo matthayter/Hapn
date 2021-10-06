@@ -57,9 +57,6 @@ namespace Hapn {
                 m_disable = disable;
             }
         }
-
-        public void Build() {
-        }
         #endregion
 
         public bool CheckAndPassData() {
@@ -152,10 +149,6 @@ namespace Hapn {
         }
         #endregion
 
-        // Just to implement ITransitionBuilder for now.
-        public void Build() {
-        }
-
         public bool CheckAndPassData() {
             foreach (var predicate in m_check) {
                 var result = predicate();
@@ -201,7 +194,7 @@ namespace Hapn {
         }
     }
 
-    public class StateGroupTransition : ITransition {
+    public class StateGroupTransition : ITransition, ITransitionBuilder {
         public Graph m_graph;
         public StateGroup m_src;
         public IState m_dest;
@@ -209,6 +202,33 @@ namespace Hapn {
         // Actions that "enable/disable the transition occurring" - e.g. subscribing to a button's onClick event
         public List<Action> m_enable = new List<Action>();
         public List<Action> m_disable = new List<Action>();
+
+        public StateGroupTransition(Graph graph, StateGroup src) {
+            m_graph = graph;
+            m_src = src;
+        }
+
+        #region Builder methods to be moved out
+        // The Transition is acting as it's own builder, might want to separate them. But is separation necessary when
+        // doing data-oriented...?
+
+        // predicate must not trigger any manual transitions.
+        public void When(Func<bool> predicate) {
+            m_check.Add(predicate);
+        }
+
+        public void To(NoTokenStateConstruction dest) {
+            m_dest = dest.ToRuntimeState();
+        }
+
+        public void ToEnable(Action enable) {
+            m_enable.Add(enable);
+        }
+
+        public void ToDisable(Action disable) {
+            m_disable.Add(disable);
+        }
+        #endregion
 
         public bool CheckAndPassData() {
             foreach (var predicate in m_check) {
@@ -257,7 +277,7 @@ namespace Hapn {
         void ToEnable(Action enable);
         void ToDisable(Action disable);
         // TODO: this should probably return ITransition. It's currently unused by anything.
-        void Build();
+        //void Build();
     }
 
     // We'll probably need a proper builder later, but just make the Transition be it's own builder for now.
