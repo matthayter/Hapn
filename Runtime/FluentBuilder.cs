@@ -114,7 +114,7 @@ namespace Hapn
 
             foreach (var t in m_transitionsToNextState) {
                 var castTransition = t as ITransitionBuilder<T>;
-                if (t == null) throw new InvalidOperationException("A transition was waiting to be connected to a state with a different token type (or no token) compared to the new state");
+                if (castTransition == null) throw new InvalidOperationException(string.Format("State {0}: A transition was waiting to be connected to a state with a different token type (or no token) compared to the new state", name));
                 castTransition.To(newState);
             }
             m_transitionsToNextState.Clear();
@@ -531,6 +531,28 @@ namespace Hapn
             return m_fluentBuilder.State<S>(name);
         }
 
+        public FluentBuilder<T> OnEntry(Action action) {
+            m_stateInContext.AddEntryAction(action);
+            return this;
+        }
+
+        public FluentBuilder<T> OnEntry(Action<T> action) {
+            var currentState = m_stateInContext;
+            m_stateInContext.AddEntryAction(() => action(currentState.ToEntranceType().token));
+            return this;
+        }
+
+        public FluentBuilder<T> OnExit(Action action) {
+            m_stateInContext.AddExitAction(action);
+            return this;
+        }
+
+        public FluentBuilder<T> OnExit(Action<T> action) {
+            var currentState = m_stateInContext;
+            m_stateInContext.AddExitAction(() => action(currentState.ToEntranceType().token));
+            return this;
+        }
+
         public FluentBuilder<T> OnUpdate(Action action) {
             m_stateInContext.AddEveryFrameAction(action);
             return this;
@@ -539,6 +561,36 @@ namespace Hapn
         public FluentBuilder<T> OnUpdate(Action<T> action) {
             var currentState = m_stateInContext;
             m_stateInContext.AddEveryFrameAction(() => action(currentState.ToEntranceType().token));
+            return this;
+        }
+
+        /* Binding */
+        public FluentBuilder<T> BindBool(Action<T, bool> action) {
+            var currentState = m_stateInContext;
+            m_stateInContext.BindBool((b) => action(currentState.ToEntranceType().token, b));
+            return this;
+        }
+
+        /* Transitions */
+        public FluentBuilder<T> TransitionByTrigger(out Action trigger, string dest = null) {
+            m_fluentBuilder.TransitionByTrigger(out trigger, dest);
+            return this;
+        }
+
+        public FluentBuilder<T> TransitionWhen(Func<T, bool> test, string dest = null) {
+            //var t = m_stateInContext.MakeDanglingTransition(test);
+            var t = m_stateInContext.MakeDanglingTransition(() => test(m_stateInContext.ToEntranceType().token));
+            m_fluentBuilder.LinkTransition(dest, t);
+            return this;
+        }
+
+        /**
+         * <summary>Transition occurs when <c>test</c> returns non-null token for next state.</summary>
+         */
+        public FluentBuilder<T> TransitionWhen<D>(Func<T, D?> test, string dest = null) where D: struct {
+            //var t = m_stateInContext.MakeDanglingTransition(test);
+            var t = m_stateInContext.MakeDanglingTransition(() => test(m_stateInContext.ToEntranceType().token));
+            m_fluentBuilder.LinkTransition(dest, t);
             return this;
         }
     }

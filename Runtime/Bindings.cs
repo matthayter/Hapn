@@ -321,6 +321,23 @@ namespace Hapn {
 
             src.AddTransition(t);
         }
+        public static ITransitionBuilder<T> MakeDanglingTransition<T>(this IStateConstruction src, Func<T> when) {
+            var t = new MultiTransition<T>(src.Graph, src.ToRuntimeState());
+            t.When(when);
+
+            src.AddTransition(t);
+            return t;
+        }
+        public static ITransitionBuilder<T> MakeDanglingTransition<T>(this IStateConstruction src, Func<T?> when) where T: struct {
+            var t = new MultiTransition<T>(src.Graph, src.ToRuntimeState());
+            t.When(() => {
+                var maybeT = when();
+                return (maybeT.HasValue, maybeT.GetValueOrDefault());
+            });
+
+            src.AddTransition(t);
+            return t;
+        }
 
         public static void TransitionAfterTime(this IStateConstruction src, NoTokenStateConstruction dest, float seconds) {
             var t = new MultiTransition(src.Graph, src.ToRuntimeState());
